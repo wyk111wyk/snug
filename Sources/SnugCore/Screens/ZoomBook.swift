@@ -26,6 +26,7 @@ public struct ZoomBook: Codable, Equatable, Sendable {
         "com.apple.Terminal": .restoredWindow, "com.googlecode.iterm2": .restoredWindow,
         "com.microsoft.VSCode": .workspace, "com.todesktop.230313mzl4w4u92": .workspace,
         "dev.zed.Zed": .app,
+        "ai.commandcode.desktop": .app,
     ]
     /// 相对原来最多缩小 / 放大几级
     public static let range = -4...8

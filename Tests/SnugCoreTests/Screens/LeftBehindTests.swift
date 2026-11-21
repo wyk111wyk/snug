@@ -30,6 +30,7 @@ struct LeftBehindTests {
         #expect(ZoomBook.scope(of: vscode) == .workspace)
         #expect(ZoomBook.scope(of: "com.todesktop.230313mzl4w4u92") == .workspace)
         #expect(ZoomBook.scope(of: "dev.zed.Zed") == .app)
+        #expect(ZoomBook.scope(of: "ai.commandcode.desktop") == .app)
         #expect(ZoomBook.scope(of: "com.apple.Safari") == nil)
         #expect(ZoomBook.scope(of: nil) == nil)
         #expect(ZoomBook.isZoomable(vscode))
