@@ -37,6 +37,22 @@ struct LeftBehindTests {
         #expect(!ZoomBook.isZoomable("com.apple.Safari"))
     }
 
+    @Test("整个 App 共用字号的（.app）窗口回来了：同一个进程还带着，换了进程才算没了")
+    func appWideZoomCarried() {
+        // Command Code 这种：uiScale 存整个 App 里，窗口回来时（进程没换）字号还在身上
+        let cc = "ai.commandcode.desktop"
+        let key = WindowKey(pid: 20, id: 300)
+        let left = LeftBehind(record: record("Command Code", key: key, bundleID: cc, zoom: 3), since: Date())
+
+        // 同一个进程里窗口回来了：字号还在，别清零（清零会少缩一次，留在 App 上）
+        let back = left.returned(as: WindowKey(pid: 20, id: 999))
+        #expect(back.zoom == 3)
+
+        // App 重启了：字号真的没了，清零，交给 repayAppWideZoom 另外还
+        let rebooted = left.returned(as: WindowKey(pid: 77, id: 999))
+        #expect(rebooted.zoom == 0)
+    }
+
     @Test("旧版的还原记录（没有 App、标题、铺成的样子）照样读得出来")
     func oldRecordDecodes() throws {
         let old = #"{"window":{"pid":10,"id":7},"app":"Ghostty","label":"Ghostty","original":[[100,100],[1200,800]],"wasFullScreen":false,"wasMinimized":false,"zoom":2}"#

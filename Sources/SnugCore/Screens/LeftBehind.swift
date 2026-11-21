@@ -36,8 +36,10 @@ public struct LeftBehind: Codable, Equatable, Sendable {
         case .restoredWindow?, .workspace?: true
         // 退出后恢复的窗口不带；只有同一个进程里「撤销关闭」恢复的还带着
         case .liveWindow?: pid == record.window.pid
-        // 整个 App 共用的不看是哪个窗口回来，按进程另外还（LeftBehindLedger.repayAppWideZoom）
-        case .app?, nil: false
+        // 整个 App 共用的不看是哪个窗口回来：同一个进程的窗口回来时字号还在它身上（没关过 App），
+        // 带着；进程换了才是真的没了，按进程另外还（LeftBehindLedger.repayAppWideZoom）
+        case .app?: pid == record.window.pid
+        case nil: false
         }
     }
 }
