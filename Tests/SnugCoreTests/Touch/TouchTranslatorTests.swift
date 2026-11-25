@@ -246,4 +246,19 @@ struct TouchTranslatorTests {
             #expect(t.isCoasting == coasts)
         }
     }
+
+    @Test("按在悬浮按钮的洞里：整个手势原样放行（拖动、点按都交给按钮自己）；洞外照常翻译")
+    func holePassesThrough() {
+        var region = phone
+        region.hole = CGRect(x: 400, y: 800, width: 56, height: 56)
+        var t = TouchTranslator()
+        // 洞里按下、拖走、抬起：都原样放行
+        #expect(t.handle(input(.press, 420, 820, 0), in: region) == .pass)
+        #expect(t.handle(input(.drag, 300, 400, 0.1), in: region) == .pass)
+        #expect(t.handle(input(.release, 300, 400, 0.2), in: region) == .pass)
+        // 洞外照旧：点一下补发点击
+        #expect(t.handle(input(.press, 100, 300, 1), in: region) == TouchResponse(passOriginal: false, commands: []))
+        #expect(t.handle(input(.release, 100, 300, 1.1), in: region)
+                == TouchResponse(passOriginal: false, commands: [.replayPress, .replayCurrent]))
+    }
 }

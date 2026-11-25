@@ -546,6 +546,14 @@ public final class DeskSet {
         }
     }
 
+    /// 某块屏的底部控件换了（横条 ⇄ 悬浮按钮）：窗口的可放区域变了，当场重新铺一次
+    public func relayout() {
+        guard desks.values.contains(where: { screens.display($0.id) != nil }) else { return }
+        lane.run {
+            for desk in self.orderedDesks { await desk.recheck() }
+        }
+    }
+
     /// 远程在不在进行（会话层的结论）。远程结束后，远程中撤屏留下的永久配置要重写（settleDisplays）
     public func setRemote(_ on: Bool) {
         guard screens.setRemote(on), !on else { return }

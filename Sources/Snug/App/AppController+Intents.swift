@@ -65,10 +65,39 @@ extension AppController: AppIntents {
         syncGestures()
     }
 
-    /// 关掉时把浮着的截图一并收掉
+    /// 收藏 / 取消收藏一个 App：只动配置，各块屏的资源库跟着 state.config 一起变
+    func setFavorite(_ bundleID: String, _ on: Bool) {
+        guard !bundleID.isEmpty else { return }
+        let name = catalog.installed.first { $0.app.bundleID == bundleID }?.app.name
+            ?? catalog.running.first { $0.app.bundleID == bundleID }?.app.name ?? bundleID
+        changeConfig("\(on ? "收藏" : "取消收藏") \(name)") { $0.setFavorite(bundleID, on) }
+    }
+
+    /// 屏幕底部控件换样式：行为变了要重算屏幕计划；窗口的可放区域跟着变，当场重铺一次
+    func setScreenTouchBar(_ id: ScreenID, _ bar: TouchBarStyle) {
+        guard let screen = state.screen(id), screen.touchBar != bar else { return }
+        guard changeConfig("「\(screen.name)」的屏幕控件 → \(bar.title)", { config in
+            if let i = config.screens.firstIndex(where: { $0.id == id }) { config.screens[i].touchBar = bar }
+        }) else { return }
+        applyPlan()
+        desks.relayout()
+        syncGestures()
+    }
+
+    /// 拖完悬浮按钮：位置变了只影响手势范围里的洞，重算一次
+    func setFloatingAnchor(_ anchor: CGPoint, on id: ScreenID) {
+        guard let screen = state.screen(id), screen.floatingAnchor != ScreenFit.clampedAnchor(anchor) else { return }
+        guard changeConfig("「\(screen.name)」的悬浮按钮位置", { config in
+            if let i = config.screens.firstIndex(where: { $0.id == id }) { config.screens[i].floatingAnchor = ScreenFit.clampedAnchor(anchor) }
+        }) else { return }
+        syncGestures()
+    }
+
+    /// 关掉时把浮着的截图一并收掉；开着截图时悬浮按钮多一个相机键，手势范围里的洞跟着变，重算一次
     func setScreenshot(_ on: Bool) {
         guard changeConfig("截图键 → \(on ? "开" : "关")", { $0.screenshot = on }) else { return }
         if on { refreshScreenRecording() } else { screenshots.dismiss() }
+        syncGestures()
     }
 
     func setZoomSteps(_ steps: Int) {
@@ -210,6 +239,8 @@ final class ScreenIntents: TouchIntents {
     func putBack(_ window: WindowKey) { desks.putBack(window, on: id) }
     func zoom(by delta: Int) { desks.zoom(by: delta, on: id) }
     func setDevice(_ device: DeviceChoice) { app.setScreenDevice(id, device) }
+    func setFavorite(_ bundleID: String, _ on: Bool) { app.setFavorite(bundleID, on) }
+    func setFloatingAnchor(_ anchor: CGPoint) { app.setFloatingAnchor(anchor, on: id) }
     func dismissScreen() { desks.dismissScreen(id) }
     func cancelMain() { app.setMainScreen(nil) }
 

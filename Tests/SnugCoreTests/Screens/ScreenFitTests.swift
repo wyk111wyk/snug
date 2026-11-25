@@ -192,4 +192,44 @@ struct ScreenFitTests {
         let screen = CGRect(x: 1512, y: 0, width: 1080, height: 1900)
         #expect(TouchRegion(screen: screen) == TouchRegion(frame: screen, scale: 2))
     }
+
+    @Test("悬浮按钮：默认贴右缘、上下居中，整个圆留出边距；带相机键时是两个圆加间隙")
+    func floatingBarFrame() {
+        let area = CGRect(x: 0, y: 0, width: 540, height: 950)
+        let one = ScreenFit.floatingBarFrame(in: area, anchor: nil, showsCamera: false)
+        #expect(one.size == CGSize(width: 56, height: 56))
+        #expect(one.maxX == area.maxX - ScreenFit.floatingMargin)   // 贴右缘
+        #expect(one.midY == area.midY)                              // 上下居中
+        let two = ScreenFit.floatingBarFrame(in: area, anchor: nil, showsCamera: true)
+        #expect(two.size == CGSize(width: 56 * 2 + 8, height: 56))
+        #expect(two.maxX == area.maxX - ScreenFit.floatingMargin)
+    }
+
+    @Test("悬浮按钮：拖到屏外夹回屏内，整个控件都在可放区域里、留出边距")
+    func floatingBarClamps() {
+        let area = CGRect(x: 100, y: 50, width: 540, height: 950)
+        let topLeft = ScreenFit.floatingBarFrame(in: area, anchor: CGPoint(x: -2, y: -2), showsCamera: false)
+        #expect(topLeft.minX == area.minX + ScreenFit.floatingMargin)
+        #expect(topLeft.minY == area.minY + ScreenFit.floatingMargin)
+        let bottomRight = ScreenFit.floatingBarFrame(in: area, anchor: CGPoint(x: 3, y: 3), showsCamera: true)
+        #expect(bottomRight.maxX == area.maxX - ScreenFit.floatingMargin)
+        #expect(bottomRight.maxY == area.maxY - ScreenFit.floatingMargin)
+    }
+
+    @Test("悬浮按钮：位置存下来再算回去，落在原来的地方")
+    func floatingAnchorRoundTrip() {
+        let area = CGRect(x: 0, y: 0, width: 952, height: 662)
+        let start = ScreenFit.floatingBarFrame(in: area, anchor: nil, showsCamera: false)
+        let again = ScreenFit.floatingBarFrame(in: area, anchor: ScreenFit.floatingAnchor(of: start, in: area), showsCamera: false)
+        #expect(abs(again.midX - start.midX) < 0.001 && abs(again.midY - start.midY) < 0.001)
+        let left = ScreenFit.floatingBarFrame(in: area, anchor: CGPoint(x: 0.2, y: 0.8), showsCamera: false)
+        let back = ScreenFit.floatingBarFrame(in: area, anchor: ScreenFit.floatingAnchor(of: left, in: area), showsCamera: false)
+        #expect(abs(back.midX - left.midX) < 0.001 && abs(back.midY - left.midY) < 0.001)
+    }
+
+    @Test("悬浮按钮跟着档位放大：1080 宽那一档（scale 2）是 112 点")
+    func floatingBarScales() {
+        let area = CGRect(x: 0, y: 0, width: 1080, height: 1900)
+        #expect(ScreenFit.floatingBarFrame(in: area, anchor: nil, showsCamera: false).size == CGSize(width: 112, height: 112))
+    }
 }

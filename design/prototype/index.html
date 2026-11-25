@@ -197,8 +197,15 @@
               <div class="text">方向</div>
               <span class="value">横</span>
             </div>
+            <div class="row plain">
+              <div class="text">屏幕控件<span class="detail">被 UU 工具栏挡住时换成悬浮按钮</span></div>
+              <span class="segmented">
+                <span aria-selected="true">底部横条</span>
+                <span>悬浮按钮</span>
+              </span>
+            </div>
           </div>
-          <p class="group-note">改型号当场换比例，不用重连。方向添加后不能改。</p>
+          <p class="group-note">改型号当场换比例，不用重连。方向添加后不能改。悬浮按钮可拖到屏内任意位置。</p>
           <div class="actions"><span class="button borderless danger">删除这块屏…</span><span class="spacer"></span><span class="button prominent">完成</span></div>
         </div>
       </div>
@@ -364,6 +371,7 @@
               <div class="t-app">
                 <img src="assets/apps/ghostty.png" alt="">
                 <div class="text"><b>Ghostty</b><small>2 个窗口</small></div>
+                <span class="t-circle star on"><i class="sym" data-s="star.fill"></i></span>
                 <span class="t-circle"><i class="sym" data-s="macwindow.badge.plus"></i></span>
                 <span class="t-circle"><i class="sym" data-s="xmark.square"></i></span>
               </div>
@@ -388,6 +396,7 @@
               <div class="t-app">
                 <img src="assets/apps/safari.png" alt="">
                 <div class="text"><b>Safari</b><small>1 个窗口</small></div>
+                <span class="t-circle star none"><i class="sym" data-s="star"></i></span>
                 <span class="t-circle"><i class="sym" data-s="macwindow.badge.plus"></i></span>
                 <span class="t-circle"><i class="sym" data-s="xmark.square"></i></span>
               </div>
@@ -396,7 +405,44 @@
           <div class="t-home"><i></i></div>
         </div>
       </div>
-      <figcaption><b>手机竖屏 · 540 × 950</b>和现在一样，只是字号、颜色、间距改从令牌取。</figcaption>
+      <figcaption><b>手机竖屏 · 540 × 950</b>和现在一样，只是字号、颜色、间距改从令牌取。App 卡片右上角多一个星标按钮：点一下收藏，再点取消。</figcaption>
+    </figure>
+
+    <!-- 全部 · 收藏置顶 -->
+    <figure class="frame">
+      <div class="screen-outer">
+        <div class="touch phone-portrait">
+          <div class="t-pad">
+            <div class="t-topbar">
+              <i class="sym" data-s="rectangle.portrait.and.arrow.right"></i>
+              <i class="sym" data-s="iphone"></i>
+            </div>
+            <h1 class="t-title">App</h1>
+            <div class="t-search"><i class="sym" data-s="magnifyingglass"></i>搜索 App</div>
+            <div class="t-seg"><span>运行中</span><span aria-selected="true">全部</span></div>
+            <div class="t-cap pin">收藏</div>
+            <div class="t-grid">
+              <div><img src="assets/apps/ghostty.png" alt=""><span>Ghostty</span></div>
+              <div><img src="assets/apps/notes.png" alt=""><span>备忘录</span></div>
+              <div><img src="assets/apps/terminal.png" alt=""><span>终端</span></div>
+              <div><img src="assets/apps/safari.png" alt=""><span>Safari</span></div>
+            </div>
+            <div class="t-cap">全部</div>
+            <div class="t-grid">
+              <div><img src="assets/apps/appstore.png" alt=""><span>App Store</span></div>
+              <div><img src="assets/apps/calculator.png" alt=""><span>计算器</span></div>
+              <div><img src="assets/apps/calendar.png" alt=""><span>日历</span></div>
+              <div><img src="assets/apps/maps.png" alt=""><span>地图</span></div>
+              <div><img src="assets/apps/finder.png" alt=""><span>访达</span></div>
+              <div><img src="assets/apps/mail.png" alt=""><span>邮件</span></div>
+              <div><img src="assets/apps/preview.png" alt=""><span>预览</span></div>
+              <div><img src="assets/apps/photos.png" alt=""><span>照片</span></div>
+            </div>
+          </div>
+          <div class="t-home"><i></i></div>
+        </div>
+      </div>
+      <figcaption><b>全部 · 收藏置顶</b>收藏的 App 单列一节排在最前面，下面才是按姓名排的全部；收藏的从字母区里去掉，不重复。横屏、平板的左栏同样在顶部多一节「收藏」。</figcaption>
     </figure>
 
     <!-- 手机横屏 -->
@@ -423,6 +469,7 @@
                 <div class="t-app">
                   <img src="assets/apps/ghostty.png" alt="">
                   <div class="text"><b>Ghostty</b><small>2 个窗口</small></div>
+                  <span class="t-circle star on"><i class="sym" data-s="star.fill"></i></span>
                   <span class="t-circle"><i class="sym" data-s="macwindow.badge.plus"></i></span>
                   <span class="t-circle"><i class="sym" data-s="xmark.square"></i></span>
                 </div>
@@ -462,8 +509,11 @@
               <div class="t-search"><i class="sym" data-s="magnifyingglass"></i>搜索 App</div>
               <div class="t-seg"><span>运行中</span><span aria-selected="true">全部</span></div>
               <div class="apps">
-                <div class="a"><img src="assets/apps/appstore.png" alt=""><div><b>App Store</b></div></div>
+                <div class="cap">收藏</div>
                 <div class="a" aria-selected="true"><img src="assets/apps/notes.png" alt=""><div><b>备忘录</b><small>运行中 · 1 个窗口</small></div></div>
+                <div class="a"><img src="assets/apps/terminal.png" alt=""><div><b>终端</b></div></div>
+                <div class="cap">全部</div>
+                <div class="a"><img src="assets/apps/appstore.png" alt=""><div><b>App Store</b></div></div>
                 <div class="a"><img src="assets/apps/maps.png" alt=""><div><b>地图</b></div></div>
                 <div class="a"><img src="assets/apps/finder.png" alt=""><div><b>访达</b><small>运行中</small></div></div>
                 <div class="a"><img src="assets/apps/calculator.png" alt=""><div><b>计算器</b></div></div>
@@ -478,6 +528,7 @@
                 <div class="t-app">
                   <img src="assets/apps/notes.png" alt="">
                   <div class="text"><b>备忘录</b><small>1 个窗口</small></div>
+                  <span class="t-circle star on"><i class="sym" data-s="star.fill"></i></span>
                   <span class="t-circle"><i class="sym" data-s="macwindow.badge.plus"></i></span>
                   <span class="t-circle"><i class="sym" data-s="xmark.square"></i></span>
                 </div>
@@ -495,6 +546,22 @@
         </div>
       </div>
       <figcaption><b>平板横屏 · 950 × 660</b>和手机横屏同一套两栏。右上角斜纹是 UU 圆形菜单按钮的位置（约 45 点），Snug 的按钮往左让开 50 点。平板竖屏 660 × 950 和手机竖屏同一套排法。</figcaption>
+    </figure>
+
+    <!-- 悬浮按钮 -->
+    <figure class="frame">
+      <div class="screen-outer">
+        <div class="touch tablet-landscape">
+          <div class="t-placeholder">
+            <div class="t-mockbar"><span class="dots"><i></i><i></i><i></i></span>终端 — ssh build-server</div>
+            <div class="t-mockbody">窗口铺满整块屏</div>
+            <div class="t-float">
+              <span class="knob"><span class="ring"></span><i class="sym" data-s="chevron.compact.up"></i><span class="hint">按住拖到任意位置</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>平板横屏 · 悬浮按钮</b>屏幕详情里选「悬浮按钮」后，底部不再留横条、窗口铺满整屏；按钮浮在窗口上，点一下回 App 资源库，按住可拖到屏内任意位置，位置按这块屏记住。开着截图时按钮旁多一个相机键，拖出 UU 工具栏盖住的地方也点得到。</figcaption>
     </figure>
 
   </div>

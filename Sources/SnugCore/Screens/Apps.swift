@@ -133,6 +133,18 @@ public enum AppList {
             .sorted { $0.keys.sortKey.localizedStandardCompare($1.keys.sortKey) == .orderedAscending }
     }
 
+    /// 收藏的排前面、从「全部」里去掉，两部分各自保持传进来的顺序（installed 本来就按字典序排好）。
+    /// 收藏为空时不分组，全部按原样
+    public static func splitFavorites(_ apps: [InstalledApp], favorites: Set<String>) -> (pinned: [InstalledApp], rest: [InstalledApp]) {
+        guard !favorites.isEmpty else { return ([], apps) }
+        var pinned: [InstalledApp] = []
+        var rest: [InstalledApp] = []
+        for app in apps {
+            if favorites.contains(app.app.bundleID) { pinned.append(app) } else { rest.append(app) }
+        }
+        return (pinned, rest)
+    }
+
     /// 首字母相同的一组 App
     public struct LetterGroup: Equatable, Sendable, Identifiable {
         public let letter: String

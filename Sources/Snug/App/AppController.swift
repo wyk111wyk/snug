@@ -231,7 +231,8 @@ final class AppController: Sendable {
         let covered: [(id: ScreenID, region: TouchRegion)] = store.config.gestures ? state.desks.desks.compactMap { id, desk in
             guard id != cropping, desk.behavior.touch, let display = desk.display else { return nil }
             // 窗口露着时才拦它的关闭按钮：列表盖着时那个位置是列表
-            return (id, TouchRegion(screen: CGDisplayBounds(display), closeButton: desk.listVisible ? nil : desk.closeButton))
+            return (id, TouchRegion(screen: CGDisplayBounds(display), closeButton: desk.listVisible ? nil : desk.closeButton,
+                                    hole: floatingHole(id: id, desk: desk, display: display)))
         } : []
         let ids = Set(covered.map(\.id))
         if ids != gestureScreens {
@@ -245,5 +246,14 @@ final class AppController: Sendable {
 
     private func screenName(_ id: ScreenID) -> String {
         store.config.screens.first { $0.id == id }?.name ?? id.rawValue
+    }
+
+    /// 悬浮按钮此刻占的那块（辅助功能坐标）：按下去落在里面就不翻译手势，整个手势交给按钮自己。
+    /// 只在窗口铺满、按钮露着（列表收着、不在裁剪）时留这个洞
+    private func floatingHole(id: ScreenID, desk: Desk.State, display: DisplayID) -> CGRect? {
+        guard desk.behavior.touch, desk.behavior.bar == .floating, !desk.listVisible, desk.placed != nil,
+              let area = Screens.usableArea(for: display) else { return nil }
+        let anchor = store.config.screens.first { $0.id == id }?.floatingAnchor
+        return ScreenFit.floatingBarFrame(in: area, anchor: anchor, showsCamera: store.config.screenshot)
     }
 }

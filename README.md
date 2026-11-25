@@ -152,6 +152,8 @@ Snug 电脑屏按控制端分辨率建立，画面与本机一致。
 - **运行中**：每个运行中的 App 一张卡片，窗口列于其下；窗口无论位于哪块屏幕、哪个桌面空间，全屏或最小化，均可在此找到
 - **全部**：本机全部 App 的图标网格，按名称排序；轻点未运行的 App 即打开
 - **搜索**：匹配 App 名称与窗口标题，支持中文、英文、拼音全拼与首字母，如「bwl」对应「备忘录」
+- **收藏**：App 卡片右上角点星标（在「新建窗口」「退出」左边），收藏的 App 在「全部」页单独一节排在最前面
+- **底部控件**：屏幕详情里选底部横条或悬浮按钮。横条是默认；悬浮按钮浮在窗口上、可拖到屏内任意位置，被 UU远程 的工具栏挡住时用它
 
 <p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.865fc506.png" width="30%" alt="运行中：手机屏上窗口所属的 App 置于最上方"> <img src="https://dl.zephyrxiang.com/snug/media/phone-all-apps.7d4ada60.png" width="30%" alt="全部：本机全部 App 的图标网格"> <img src="https://dl.zephyrxiang.com/snug/media/phone-search.d365e194.png" width="30%" alt="搜索：输入 bwl 找到备忘录"><br><sub>运行中 · 全部 · 拼音首字母搜索</sub></p>
 

@@ -96,6 +96,8 @@ public final class Desk {
         get { state.behavior }
         set { state.behavior = newValue }
     }
+    /// 放窗口时底部是否让出小横条那一条：只有用底部横条的触屏才让；悬浮按钮浮在窗口上，不让
+    private var reservesHomeBar: Bool { behavior.touch && behavior.bar == .dock }
     private(set) var state = State() {
         didSet { if state != oldValue { onChange?() } }
     }
@@ -237,7 +239,7 @@ public final class Desk {
               let got = await land(&next) else { return }
         let was = look.fullScreen ? "（原来全屏）" : look.minimized ? "（原来最小化）" : ""
         let took = String(format: "%.1f", timeline.now - started)
-        let fill = describeFill(got, in: screens.windowArea(id, withHomeBar: true), width: screens.width(id) ?? next.width)
+        let fill = describeFill(got, in: screens.windowArea(id, withHomeBar: reservesHomeBar), width: screens.width(id) ?? next.width)
         Log.info("\(window.label) 放上屏 #\(display)（\(took)s）：原位 \(next.record.original.short)\(was)，\(fill)")
 
         // 带着字号回来的不重复放大，只补差的那几级
@@ -403,7 +405,7 @@ public final class Desk {
     @discardableResult
     private func fill(_ p: inout Placement) async -> CGRect? {
         await screens.setWidth(id, p.width)
-        guard let area = screens.windowArea(id, withHomeBar: true), let got = await moveOnto(p.window, area) else { return nil }
+        guard let area = screens.windowArea(id, withHomeBar: reservesHomeBar), let got = await moveOnto(p.window, area) else { return nil }
         p.settled = got
         // App 关窗时存下的就是这个大小：窗口在 Snug 之外没了，凭它认出回来的是不是它
         p.record.filled = got
@@ -735,7 +737,7 @@ public final class Desk {
             Log.warn("\(what)：屏（\(id)）没好（\(state.screen)）")
             return nil
         }
-        guard screens.windowArea(id, withHomeBar: behavior.touch) != nil else {
+        guard screens.windowArea(id, withHomeBar: reservesHomeBar) != nil else {
             Log.warn("\(what)：读不到屏 #\(display) 的可放区域（屏幕组合可能还在变）")
             return nil
         }

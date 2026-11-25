@@ -127,4 +127,19 @@ struct AppListTests {
         #expect(!AppList.canQuit(app("com.apple.finder", "访达")))
         #expect(AppList.canQuit(ghosttyApp.app))
     }
+
+    @Test("收藏置顶：收藏的挑前面、从「全部」里去掉，两边都保持原顺序；没有收藏时不分组")
+    func splitFavorites() {
+        let list = AppList.sorted([ghosttyApp, notesApp, bionic, code, memos], excluding: [])
+        let (pinned, rest) = AppList.splitFavorites(list, favorites: ["com.apple.Notes", "com.mitchellh.ghostty"])
+        // 收藏区按字典序（备忘录在 Ghostty 前），其余保持原顺序
+        #expect(pinned.map(\.app.name) == ["备忘录", "Ghostty"])
+        #expect(rest.map(\.app.name) == ["Bionic", "Visual Studio Code", "语音备忘录"])
+        // 收藏的名字不在列表里（卸载了）就不出现，也不影响其余
+        #expect(AppList.splitFavorites(list, favorites: ["com.example.gone"]).pinned.isEmpty)
+        // 没有收藏：整份都在 rest，pinned 空
+        let (none, all) = AppList.splitFavorites(list, favorites: [])
+        #expect(none.isEmpty)
+        #expect(all.map(\.app.name) == list.map(\.app.name))
+    }
 }

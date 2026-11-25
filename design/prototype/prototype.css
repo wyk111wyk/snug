@@ -308,6 +308,33 @@ figure.frame figcaption b { display: block; color: var(--board-ink); font: var(-
 .t-home { position: absolute; left: 0; right: 0; bottom: 0; height: var(--touch-size-home-indicator-hit-height); display: grid; place-items: center; }
 .t-home i { width: var(--touch-size-home-indicator-width); height: var(--touch-size-home-indicator-height); border-radius: 999px; background: var(--touch-label); opacity: .85; }
 
+/* 收藏：App 卡片里第三个圆按钮（在「新建窗口 / 退出」左边）；收藏后星标填实、用强调色 */
+.t-circle.star .sym { font-size: 26px; }
+.t-circle.star.on { color: var(--touch-tint); }
+.t-circle.star.none { color: var(--touch-secondary-label); }
+
+/* 收藏：置顶的一节，排在字母区前面 */
+.t-cap.pin { margin-bottom: var(--touch-space-s); }
+.split .side .cap { font: var(--touch-font-caption); color: var(--touch-secondary-label); padding: 0 var(--touch-space-m); }
+
+/* 悬浮按钮：铺满窗口时代替底部横条，可拖到屏内任意位置；开着截图时右边多一个相机键 */
+.t-placeholder { position: relative; height: 100%; background: var(--touch-card); }
+.t-mockbar { position: absolute; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; gap: var(--touch-space-m);
+  padding: 0 var(--touch-space-margin); background: var(--touch-fill); color: var(--touch-secondary-label); font: var(--touch-font-caption); }
+.t-mockbar .dots { display: flex; gap: var(--touch-space-s); }
+.t-mockbar .dots i { width: 12px; height: 12px; border-radius: 50%; background: rgba(120,120,128,.5); }
+.t-mockbody { position: absolute; top: 48px; left: 0; right: 0; bottom: 0; display: grid; place-items: center; color: var(--touch-secondary-label); font: var(--touch-font-body); }
+.t-float { position: absolute; left: 63%; top: 52%; transform: translate(-50%, -50%); z-index: 3; display: flex; align-items: center; gap: var(--touch-space-s); }
+.t-float .knob { position: relative; width: var(--touch-size-circle-button); height: var(--touch-size-circle-button); border-radius: 50%;
+  background: var(--touch-card); display: grid; place-items: center; color: var(--touch-secondary-label);
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,.14), 0 8px 24px rgba(0,0,0,.3); }
+.t-float .knob .sym { font-size: 32px; }
+.t-float .ring { position: absolute; inset: -9px; border: 2px dashed var(--touch-tint); border-radius: 50%; opacity: .5; }
+.t-float .hint { position: absolute; left: calc(100% + var(--touch-space-m)); top: 50%; transform: translateY(-50%); white-space: nowrap;
+  font: var(--touch-font-caption); color: var(--touch-secondary-label); background: var(--touch-card);
+  border-radius: var(--touch-radius-control); padding: var(--touch-space-xs) var(--touch-space-s);
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.16); }
+
 /* 横屏、平板：左边 App 列表，右边选中 App 的窗口 */
 .split { display: flex; height: 100%; }
 .split .side { width: var(--touch-layout-phone-landscape-sidebar); padding: var(--touch-space-l) var(--touch-space-l) 0 var(--touch-space-margin); display: flex; flex-direction: column; gap: var(--touch-space-m); border-right: 1px solid var(--touch-separator); }

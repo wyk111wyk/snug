@@ -21,6 +21,8 @@ struct AppCard: View {
     let app: RunningApp
     let panel: PanelState
     let onScreen: OnScreen
+    /// 这个 App 收藏了没有（App 资源库「全部」页里置顶）
+    let favorited: Bool
     @Binding var confirming: TouchHomeView.Confirm?
     let icon: NSImage
     let intents: any TouchIntents
@@ -74,6 +76,11 @@ struct AppCard: View {
             ConfirmButtons(title: "退出", confirming: $confirming) { intents.quit(app) }
         } else {
             HStack(spacing: TouchTokens.Space.s) {
+                RoundButton(symbol: favorited ? "star.fill" : "star",
+                            label: favorited ? "取消收藏" : "收藏",
+                            tint: favorited ? TouchTokens.Color.tint : nil) {
+                    intents.setFavorite(app.app.bundleID, !favorited)
+                }
                 RoundButton(symbol: "macwindow.badge.plus", label: "新建窗口") { intents.newWindow(app) }
                 if AppList.canQuit(app.app) {
                     RoundButton(symbol: "xmark.app", label: "退出") { confirming = .quit(app.pid) }

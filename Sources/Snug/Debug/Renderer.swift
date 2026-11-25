@@ -70,6 +70,8 @@ final class RenderStub: AppIntents, TouchIntents, Navigation {
     func setMainScreen(_ id: ScreenID?) {}
     func setGestures(_ on: Bool) {}
     func setZoomSteps(_ steps: Int) {}
+    func setFavorite(_ bundleID: String, _ on: Bool) {}
+    func setScreenTouchBar(_ id: ScreenID, _ bar: TouchBarStyle) {}
     func setLaunchAtLogin(_ on: Bool) {}
     func openLoginItemsSettings() {}
     func markWelcomed() {}
@@ -94,6 +96,7 @@ final class RenderStub: AppIntents, TouchIntents, Navigation {
     func putBack(_ window: WindowKey) {}
     func zoom(by delta: Int) {}
     func setDevice(_ device: DeviceChoice) {}
+    func setFloatingAnchor(_ anchor: CGPoint) {}
     func dismissScreen() {}
     func cancelMain() {}
     func takeScreenshot() {}

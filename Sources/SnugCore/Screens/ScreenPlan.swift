@@ -14,7 +14,7 @@ public enum ScreenPlan {
         guard trusted else { return [] }
         let shown = config.screens.filter(\.enabled).prefix(ScreenConfig.limit)
         return shown.filter { remote || preview || $0.id == config.mainScreen }.map { screen in
-            ScreenWish(id: screen.id, spec: spec(of: screen), fit: fit(of: screen), behavior: behavior(screen.device.kind),
+            ScreenWish(id: screen.id, spec: spec(of: screen), fit: fit(of: screen), behavior: behavior(screen.device.kind, bar: screen.touchBar),
                        main: config.mainScreen == screen.id)
         }
     }
@@ -34,8 +34,8 @@ public enum ScreenPlan {
         ScreenFit(device: device.screen, kind: device.kind, orientation: orientation)
     }
 
-    /// 类别 → 行为（哪些类别算触屏见 DeviceKind.isTouch）
-    public static func behavior(_ kind: DeviceKind) -> ScreenBehavior {
-        kind.isTouch ? .touchScreen : .computer
+    /// 类别 → 行为（哪些类别算触屏见 DeviceKind.isTouch）。bar：触屏屏底部用哪种控件
+    public static func behavior(_ kind: DeviceKind, bar: TouchBarStyle = .dock) -> ScreenBehavior {
+        kind.isTouch ? .touch(bar) : .computer
     }
 }

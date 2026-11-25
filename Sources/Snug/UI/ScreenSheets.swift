@@ -151,6 +151,20 @@ struct ScreenDetailSheet: View {
                             }
                         }
                     }
+                    if screen.device.kind.isTouch {
+                        LabeledContent {
+                            Picker("屏幕控件", selection: Binding(get: { screen.touchBar },
+                                                                  set: { intents.setScreenTouchBar(id, $0) })) {
+                                ForEach(TouchBarStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .fixedSize()
+                        } label: {
+                            Text("屏幕控件")
+                            Text("被 UU远程 工具栏挡住时换成悬浮按钮")
+                        }
+                    }
                 } footer: {
                     VStack(alignment: .leading, spacing: MacTokens.Space.xs) {
                         if case .existing(let saved) = other, saved.enabled {
@@ -158,7 +172,7 @@ struct ScreenDetailSheet: View {
                         } else if other == .limitReached {
                             Text("已达到 \(ScreenConfig.limit) 块屏幕上限，腾出位置后可添加另一方向。")
                         }
-                        Text("改型号当场换比例，不用重连。改名下次远程时生效。")
+                        Text("改型号当场换比例，不用重连。改名下次远程时生效。悬浮按钮可拖到屏内任意位置。")
                     }
                     .font(.callout).foregroundStyle(.secondary)
                 }

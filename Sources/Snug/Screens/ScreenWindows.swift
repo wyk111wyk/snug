@@ -53,8 +53,11 @@ final class ScreenWindows {
     private let intents: any TouchIntents
     private var display: DisplayID?
     private var list: TouchPanel?
-    private var homeBar: TouchPanel?
-    private var homeBarView: HomeBarView?
+    /// 屏底部的控件：底部横条，或浮在窗口上、可拖的悬浮按钮。用哪种跟着这块屏的行为走
+    private var bar: TouchPanel?
+    private var barKind: TouchBarStyle?
+    private var dockView: HomeBarView?
+    private var floatView: FloatingBarView?
     /// 截图后浮在小横条上方的那一块（缩略图或提示），和它此刻显示的是什么
     private var overlay: TouchPanel?
     private var overlayShown: OverlayShown?
@@ -116,11 +119,17 @@ final class ScreenWindows {
             tearDown(because: "换到 #\(display)")
             build(on: display)
         }
-        guard let list, let homeBar else { return }
+        // 底部控件换了样式（横条 ⇄ 悬浮按钮）：只重建这一块，不动资源库
+        if panel.behavior.bar != barKind { rebuildBar(panel.behavior.bar, on: display) }
+        guard let list, let bar else { return }
         list.setFrame(screen.frame, display: true)
-        homeBar.setFrame(homeBarFrame(on: screen), display: true)
-        homeBarView?.scale = ScreenFit.scale(screen: screen.frame.size)
-        homeBarView?.showsCamera = state.config.screenshot
+        // 悬浮按钮正在被拖：别在当前这拍把它拽回记下的位置（松手时自己会记新的）
+        if floatView?.isDragging != true { bar.setFrame(barFrame(on: screen), display: true) }
+        let scale = ScreenFit.scale(screen: screen.frame.size)
+        dockView?.scale = scale
+        floatView?.scale = scale
+        dockView?.showsCamera = state.config.screenshot
+        floatView?.showsCamera = state.config.screenshot
 
         let showList = panel.listVisible || panel.placed == nil
         let watching = state.watching(id)
@@ -143,7 +152,7 @@ final class ScreenWindows {
             catalog.release(id.rawValue)
         }
         let cropping = screenshot?.isCropping == true
-        if panel.placed != nil, !showList, !cropping { homeBar.orderFrontRegardless() } else { homeBar.orderOut(nil) }
+        if panel.placed != nil, !showList, !cropping { bar.orderFrontRegardless() } else { bar.orderOut(nil) }
         updateOverlay(on: screen, hidden: showList)
         updateCrop(on: screen)
     }
@@ -174,9 +183,10 @@ final class ScreenWindows {
             panel.ignoresMouseEvents = !preview
         }
         let size = panel.contentView?.fittingSize ?? .zero
-        let bar = homeBarFrame(on: screen)
-        let x = preview ? bar.minX + 12 * scale : bar.midX - size.width / 2
-        panel.setFrame(NSRect(origin: CGPoint(x: x, y: bar.maxY + 8 * scale), size: size), display: true)
+        let barRect = barFrame(on: screen)
+        // 横条：缩略图靠左、就在相机键上方；悬浮按钮：靠它左上方。提示都居中在它的上方
+        let x = preview ? barRect.minX + 12 * scale : barRect.midX - size.width / 2
+        panel.setFrame(NSRect(origin: CGPoint(x: x, y: barRect.maxY + 8 * scale), size: size), display: true)
         panel.orderFrontRegardless()
     }
 
@@ -197,39 +207,90 @@ final class ScreenWindows {
     }
 
     private func build(on id: DisplayID) {
-        Log.info("屏（\(self.id)）的列表、小横条建在 #\(id) 上")
+        Log.info("屏（\(self.id)）的列表、底部控件建在 #\(id) 上")
         display = id
         list = TouchPanel(content: FirstMouseHostingView(rootView: TouchHomeView(screen: self.id, state: state, catalog: catalog, pages: pages,
                                                                                  intents: intents).screenPanel(self.id, state: state)))
-        let bar = HomeBarView()
-        bar.onActivate = { [weak self] in self?.intents.showList() }
-        bar.onCapture = { [weak self] in self?.intents.takeScreenshot() }
-        homeBar = TouchPanel(content: bar)
-        homeBarView = bar
+        buildBar(panelBehavior.bar)
+    }
+
+    /// 这块屏此刻该用哪种底部控件（按行为走）
+    private var panelBehavior: ScreenBehavior { state.desks.desks[id]?.behavior ?? .touchScreen }
+
+    /// 建底部控件：横条或悬浮按钮，只建要用的那一个
+    private func buildBar(_ kind: TouchBarStyle) {
+        barKind = kind
+        switch kind {
+        case .dock:
+            let view = HomeBarView()
+            view.onActivate = { [weak self] in self?.intents.showList() }
+            view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
+            dockView = view
+            bar = TouchPanel(content: view)
+        case .floating:
+            let view = FloatingBarView()
+            view.onActivate = { [weak self] in self?.intents.showList() }
+            view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
+            view.onMoved = { [weak self] frame in self?.commitAnchor(frame) }
+            floatView = view
+            // 悬浮按钮是个圆，面板透明（背景由按钮自己画）
+            bar = TouchPanel(content: view, opaque: false)
+        }
+    }
+
+    /// 换了底部控件：拆掉旧的那块面板，按新样式建一个（资源库面板不动）
+    private func rebuildBar(_ kind: TouchBarStyle, on display: DisplayID) {
+        Log.info("屏（\(self.id)）的底部控件换成\(kind.title)")
+        bar?.orderOut(nil)
+        bar = nil
+        dockView = nil
+        floatView = nil
+        buildBar(kind)
+        if let bar, let screen = Screens.screen(for: display) { bar.setFrame(barFrame(on: screen), display: true) }
     }
 
     private func tearDown(because reason: String) {
-        if let display { Log.info("屏（\(id)）在 #\(display) 上的列表、小横条拆掉：\(reason)") }
+        if let display { Log.info("屏（\(id)）在 #\(display) 上的列表、底部控件拆掉：\(reason)") }
         catalog.release(id.rawValue)
         pages.close()
         list?.orderOut(nil)
-        homeBar?.orderOut(nil)
+        bar?.orderOut(nil)
         overlay?.orderOut(nil)
         cropPanel?.orderOut(nil)
         list = nil
-        homeBar = nil
-        homeBarView = nil
+        bar = nil
+        barKind = nil
+        dockView = nil
+        floatView = nil
         overlay = nil
         overlayShown = nil
         cropPanel = nil
         display = nil
     }
 
-    /// 可见区底部那一条：放上来的窗口正好让出这一条（高度跟着档位缩放，见 ScreenFit.homeBarHeight）
-    private func homeBarFrame(on screen: NSScreen) -> NSRect {
-        let visible = screen.visibleFrame
-        return NSRect(x: visible.minX, y: visible.minY, width: visible.width,
-                      height: ScreenFit.homeBarHeight(screen: screen.frame.size))
+    /// 底部控件在这一档屏上的外框：横条占可见区底部那一条（放上来的窗口正好让出它，见 ScreenFit.homeBarHeight）；
+    /// 悬浮按钮浮在窗口上，按记下的位置摆（见 ScreenFit.floatingBarFrame）
+    private func barFrame(on screen: NSScreen) -> NSRect {
+        switch barKind {
+        case .floating:
+            guard let display, let area = Screens.usableArea(for: display) else { return .zero }
+            let frame = ScreenFit.floatingBarFrame(in: area, anchor: state.screen(id)?.floatingAnchor,
+                                                   showsCamera: state.config.screenshot)
+            return Screens.appKitRect(fromAX: frame)
+        case .dock, nil:
+            let visible = screen.visibleFrame
+            return NSRect(x: visible.minX, y: visible.minY, width: visible.width,
+                          height: ScreenFit.homeBarHeight(screen: screen.frame.size))
+        }
+    }
+
+    /// 悬浮按钮拖完了：按它落下的位置记成归一化的锚点，再把面板夹回屏内（拖到屏外的部分回弹）
+    private func commitAnchor(_ frame: NSRect) {
+        guard let display, let area = Screens.usableArea(for: display) else { return }
+        let anchor = ScreenFit.floatingAnchor(of: Screens.axRect(fromAppKit: frame), in: area)
+        let clamped = ScreenFit.floatingBarFrame(in: area, anchor: anchor, showsCamera: state.config.screenshot)
+        bar?.setFrame(Screens.appKitRect(fromAX: clamped), display: true)
+        intents.setFloatingAnchor(anchor)
     }
 
     /// 浮层上显示的截图结果和当时的倍率：换了才重建视图
@@ -359,5 +420,132 @@ final class HomeBarView: NSView {
             swipe = 0
             onActivate?()
         }
+    }
+}
+
+/// 悬浮按钮：浮在铺满的窗口之上，点一下回 App 资源库，按住可拖到屏内任意位置；开着截图时左边多一个相机键。
+/// 面板只有控件那么大，背景是圆的（面板透明）。和底部横条不同，它不在屏上占一条：按下时手势翻译让开它那一块
+/// （TouchRegion 的洞），事件原样到这儿，拖动移动面板本身，松手把落点交回 ScreenWindows 记进配置。
+/// 屏换到更宽的一档时跟着放大（scale），在手机上看着、点着、拖着都和基准宽度一样
+final class FloatingBarView: NSView {
+    /// 基准宽度下挪过这么多点算拖动，没到算点一下
+    static let dragThreshold: CGFloat = 8
+
+    var onActivate: (() -> Void)?
+    var onCapture: (() -> Void)?
+    /// 拖完了：交回控件所在的窗口外框（AppKit 坐标），由 ScreenWindows 换算成归一化位置存起来
+    var onMoved: ((NSRect) -> Void)?
+    /// 这一档比基准宽度宽几倍（ScreenFit.scale）
+    var scale: CGFloat = 1 {
+        didSet { if scale != oldValue { updateIcons(); needsLayout = true } }
+    }
+    /// 设置里开着「截图」
+    var showsCamera = false {
+        didSet {
+            guard showsCamera != oldValue else { return }
+            camera.isHidden = !showsCamera
+            needsLayout = true
+            needsDisplay = true
+        }
+    }
+    private let grabber = NSImageView()
+    private let camera = NSImageView()
+    /// 按下那一刻在屏幕坐标里的指针位置和窗口原点
+    private var startMouse = CGPoint.zero
+    private var startOrigin = CGPoint.zero
+    private var moved = false
+    /// 正在拖着（按下到抬起之间）：ScreenWindows 别在这一刻把它摆回记下的位置
+    private(set) var isDragging = false
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        updateIcons()
+        grabber.contentTintColor = .secondaryLabelColor
+        camera.contentTintColor = .secondaryLabelColor
+        camera.imageScaling = .scaleNone
+        camera.isHidden = true
+        addSubview(camera)
+        addSubview(grabber)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("不从 nib 加载") }
+
+    private func updateIcons() {
+        grabber.image = NSImage(systemSymbolName: "chevron.compact.up", accessibilityDescription: "App 资源库")?
+            .withSymbolConfiguration(.init(pointSize: 30 * scale, weight: .semibold))
+        camera.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "截图")?
+            .withSymbolConfiguration(.init(pointSize: 26 * scale, weight: .semibold))
+        needsLayout = true
+    }
+
+    private var diameter: CGFloat { bounds.height }
+    /// 相机键那个圆：左边一整个圆的直径见方
+    private var cameraArea: NSRect { NSRect(x: 0, y: 0, width: diameter, height: diameter) }
+
+    override func layout() {
+        super.layout()
+        let d = diameter
+        camera.frame = cameraArea
+        grabber.frame = NSRect(x: bounds.width - d, y: 0, width: d, height: d)
+    }
+
+    override var isOpaque: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// 图标只是装饰，点哪儿都由控件自己接
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        super.hitTest(point) == nil ? nil : self
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let d = diameter
+        drawKnob(NSRect(x: bounds.width - d, y: 0, width: d, height: d))
+        if showsCamera { drawKnob(cameraArea) }
+    }
+
+    /// 一个圆：卡片色底 + 细描边 + 投影，浮在任意窗口上都看得清
+    private func drawKnob(_ rect: NSRect) {
+        let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5))
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
+        shadow.shadowBlurRadius = 12 * scale
+        shadow.shadowOffset = NSSize(width: 0, height: -2 * scale)
+        shadow.set()
+        TouchTokens.Color.cardNSColor.setFill()
+        circle.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        TouchTokens.Color.separatorNSColor.setStroke()
+        circle.lineWidth = 1
+        circle.stroke()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        startMouse = NSEvent.mouseLocation
+        startOrigin = window?.frame.origin ?? .zero
+        moved = false
+        isDragging = true
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let window else { return }
+        let now = NSEvent.mouseLocation
+        let dx = now.x - startMouse.x, dy = now.y - startMouse.y
+        if !moved, hypot(dx, dy) >= Self.dragThreshold * scale { moved = true }
+        guard moved else { return }
+        window.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        isDragging = false
+        guard let window else { return }
+        if moved {
+            onMoved?(window.frame)
+            return
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        guard bounds.contains(point) else { return }
+        if showsCamera, cameraArea.contains(point) { onCapture?() } else { onActivate?() }
     }
 }

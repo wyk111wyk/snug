@@ -336,6 +336,13 @@ enum RenderSamples {
             panel("phone-quit-stalled-dark", dark: true) { s, _ in s.desks.desks[.phone]?.notice = .quitStalled(app: "文本编辑", pid: 9) },
             panel("phone-all", tab: .all) { _, _ in },
             panel("phone-all-dark", dark: true, tab: .all) { s, _ in s.desks.desks[.phone]?.placed = placed },
+            panel("phone-all-favorites", tab: .all) { s, _ in
+                s.config.favorites = ["com.mitchellh.ghostty", "com.apple.Notes"]
+            },
+            panel("phone-placed-favorited") { s, _ in
+                s.desks.desks[.phone]?.placed = placed
+                s.config.favorites = ["com.mitchellh.ghostty"]
+            },
             panel("phone-search") { _, pages in pages.open(.search) },
             panel("phone-search-results") { _, pages in
                 pages.open(.search)

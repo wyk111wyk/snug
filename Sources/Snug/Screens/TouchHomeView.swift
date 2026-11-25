@@ -222,7 +222,7 @@ struct TouchHomeView: View {
     @ViewBuilder private var page: some View {
         switch tab {
         case .running: runningPage
-        case .all: AllApps(catalog: catalog, quitting: panel.quitting, intents: intents)
+        case .all: AllApps(catalog: catalog, favorites: state.config.favorites, quitting: panel.quitting, intents: intents)
         }
     }
 
@@ -251,7 +251,8 @@ struct TouchHomeView: View {
     }
 
     private func appCard(_ app: RunningApp) -> some View {
-        AppCard(app: app, panel: panel, onScreen: OnScreen(config), confirming: $confirming, icon: catalog.icon(for: app.app), intents: intents)
+        AppCard(app: app, panel: panel, onScreen: OnScreen(config), favorited: state.config.favorites.contains(app.app.bundleID),
+                confirming: $confirming, icon: catalog.icon(for: app.app), intents: intents)
     }
 
     // MARK: 横屏两栏
@@ -291,7 +292,7 @@ struct TouchHomeView: View {
                 LazyVStack(spacing: TouchTokens.Space.xs) {
                     switch tab {
                     case .running: ForEach(catalog.running) { sideRow(running: $0) }
-                    case .all: ForEach(catalog.installed) { sideRow(installed: $0.app) }
+                    case .all: installedRows
                     }
                 }
             }
@@ -306,6 +307,25 @@ struct TouchHomeView: View {
         }
         .padding(.horizontal, TouchTokens.Space.margin)
         .padding(.top, TouchTokens.Space.margin)
+    }
+
+    /// 「全部」：收藏的排前面、单独一节（按字典序），其余在后面
+    @ViewBuilder private var installedRows: some View {
+        let (pinned, rest) = AppList.splitFavorites(catalog.installed, favorites: state.config.favorites)
+        if !pinned.isEmpty {
+            sideCaption("收藏")
+            ForEach(pinned) { sideRow(installed: $0.app) }
+            sideCaption("全部")
+        }
+        ForEach(rest) { sideRow(installed: $0.app) }
+    }
+
+    private func sideCaption(_ text: String) -> some View {
+        Text(text)
+            .font(TouchTokens.Font.caption.font)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, TouchTokens.Space.m)
+            .padding(.top, TouchTokens.Space.s)
     }
 
     /// 选中的 App：没选过就是放着的窗口的 App，再不然第一个
@@ -467,6 +487,7 @@ private struct Banner<Actions: View>: View {
 /// 本机所有 App：图标网格，4 列，按字典序；正在运行的下方有圆点，正在退出的点不了
 private struct AllApps: View {
     let catalog: AppCatalog
+    let favorites: Set<String>
     let quitting: Set<Int32>
     let intents: any TouchIntents
 
@@ -476,25 +497,39 @@ private struct AllApps: View {
         if catalog.installed.isEmpty {
             EmptyState(symbol: nil, text: "正在读取")
         } else {
+            // 行号算一次给两个区共用：同一个 App 的「运行中」圆点两处一致
             let running = Dictionary(catalog.running.map { ($0.app.bundleID, $0.pid) }, uniquingKeysWith: { first, _ in first })
-            LazyVGrid(columns: Self.columns, spacing: TouchTokens.Space.margin) {
-                ForEach(catalog.installed) { item in
-                    let pid = running[item.app.bundleID]
-                    Button { intents.open(item.app) } label: {
-                        VStack(spacing: TouchTokens.Space.s) {
-                            AppIcon(image: catalog.icon(for: item.app), size: 72)
-                            Text(item.app.name).font(TouchTokens.Font.label.font).lineLimit(1).frame(maxWidth: 116)
-                            Circle()
-                                .fill(.secondary)
-                                .frame(width: 6, height: 6)
-                                .opacity(pid == nil ? 0 : 1)
-                                .padding(.top, -TouchTokens.Space.xs)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .disabled(pid.map(quitting.contains) ?? false)
+            let (pinned, rest) = AppList.splitFavorites(catalog.installed, favorites: favorites)
+            if pinned.isEmpty {
+                grid(catalog.installed, running: running)
+            } else {
+                VStack(alignment: .leading, spacing: TouchTokens.Space.xxl) {
+                    TitledSection("收藏") { grid(pinned, running: running) }
+                    TitledSection("全部") { grid(rest, running: running) }
                 }
+            }
+        }
+    }
+
+    /// 图标网格，4 列，按字典序；正在运行的下方有圆点，正在退出的点不了
+    private func grid(_ items: [InstalledApp], running: [String: Int32]) -> some View {
+        LazyVGrid(columns: Self.columns, spacing: TouchTokens.Space.margin) {
+            ForEach(items) { item in
+                let pid = running[item.app.bundleID]
+                Button { intents.open(item.app) } label: {
+                    VStack(spacing: TouchTokens.Space.s) {
+                        AppIcon(image: catalog.icon(for: item.app), size: 72)
+                        Text(item.app.name).font(TouchTokens.Font.label.font).lineLimit(1).frame(maxWidth: 116)
+                        Circle()
+                            .fill(.secondary)
+                            .frame(width: 6, height: 6)
+                            .opacity(pid == nil ? 0 : 1)
+                            .padding(.top, -TouchTokens.Space.xs)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(pid.map(quitting.contains) ?? false)
             }
         }
     }

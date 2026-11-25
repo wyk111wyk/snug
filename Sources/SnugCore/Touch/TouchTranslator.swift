@@ -18,11 +18,15 @@ public struct TouchRegion: Equatable, Sendable {
     public var scale: Double
     /// 屏上那个窗口的关闭按钮；露着列表、没放窗口时为 nil
     public var closeButton: CloseButton?
+    /// 悬浮按钮占的那块（和 frame 同一套坐标）：按下去落在里面就不翻译手势，整个手势原样交给按钮自己
+    /// （拖动移动、点一下回 App 资源库）。只在窗口铺满、按钮露着时留这个洞
+    public var hole: CGRect?
 
-    public init(frame: CGRect, scale: Double, closeButton: CloseButton? = nil) {
+    public init(frame: CGRect, scale: Double, closeButton: CloseButton? = nil, hole: CGRect? = nil) {
         self.frame = frame
         self.scale = scale
         self.closeButton = closeButton
+        self.hole = hole
     }
 }
 
@@ -147,7 +151,8 @@ public struct TouchTranslator: Sendable {
     private mutating func press(_ input: TouchInput, in region: TouchRegion?) -> TouchResponse {
         // 新的一按先把还在走的惯性停掉（和 iPhone 上手指按住正在滚的列表一样）
         let stop = stopMomentum()
-        guard let region, region.frame.contains(input.location) else {
+        // 落在悬浮按钮的洞里：整个手势原样放行，让按钮自己接（面板在窗口之上，按下、拖动、抬起都送到它那里）
+        guard let region, region.frame.contains(input.location), !(region.hole?.contains(input.location) ?? false) else {
             phase = .idle
             return TouchResponse(passOriginal: true, commands: stop)
         }

@@ -8,6 +8,10 @@ import SwiftUI
 extension TouchTokens.Color {
     /// 面板窗口的底色（NSPanel 要 NSColor）
     static var backgroundNSColor: NSColor { NSColor(background) }
+    /// 悬浮按钮的底（卡片色）
+    static var cardNSColor: NSColor { NSColor(card) }
+    /// 悬浮按钮的描边
+    static var separatorNSColor: NSColor { NSColor(separator) }
 }
 
 extension EnvironmentValues {

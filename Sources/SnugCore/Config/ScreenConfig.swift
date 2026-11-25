@@ -4,6 +4,20 @@
 import CoreGraphics
 import Foundation
 
+/// 触屏屏底部的控件：底部横条（点一下回 App 资源库），或浮在窗口上、可拖到任意位置的按钮。
+/// 被 UU远程 的工具栏压在下面时换成悬浮按钮（见 docs/how-it-works.md「App 资源库」）
+public enum TouchBarStyle: String, Codable, Sendable, CaseIterable {
+    case dock
+    case floating
+
+    public var title: String {
+        switch self {
+        case .dock: "底部横条"
+        case .floating: "悬浮按钮"
+        }
+    }
+}
+
 public struct ScreenConfig: Codable, Equatable, Sendable, Identifiable {
     public var id: ScreenID
     public var orientation: Orientation
@@ -12,14 +26,38 @@ public struct ScreenConfig: Codable, Equatable, Sendable, Identifiable {
     public var name: String
     /// 主序列号加两个备用的（建了不上线就依次换）
     public var serials: [UInt32]
+    /// 触屏屏底部的控件，默认底部横条
+    public var touchBar: TouchBarStyle
+    /// 悬浮按钮的位置：控件中心，按屏的可放区域归一化（0…1，左上原点）。nil 用默认位置（右缘居中）
+    public var floatingAnchor: CGPoint?
 
-    public init(id: ScreenID, orientation: Orientation, device: DeviceChoice, enabled: Bool = true, name: String, serials: [UInt32]) {
+    public init(id: ScreenID, orientation: Orientation, device: DeviceChoice, enabled: Bool = true, name: String, serials: [UInt32],
+                touchBar: TouchBarStyle = .dock, floatingAnchor: CGPoint? = nil) {
         self.id = id
         self.orientation = orientation
         self.device = device
         self.enabled = enabled
         self.name = name
         self.serials = serials
+        self.touchBar = touchBar
+        self.floatingAnchor = floatingAnchor
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, orientation, device, enabled, name, serials, touchBar, floatingAnchor
+    }
+
+    // 逐项解：新加的字段老配置里没有，用 decodeIfPresent 给默认值，不能因为缺它们把整块屏丢掉
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(ScreenID.self, forKey: .id)
+        orientation = try c.decode(Orientation.self, forKey: .orientation)
+        device = try c.decode(DeviceChoice.self, forKey: .device)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        name = try c.decode(String.self, forKey: .name)
+        serials = try c.decode([UInt32].self, forKey: .serials)
+        touchBar = try c.decodeIfPresent(TouchBarStyle.self, forKey: .touchBar) ?? .dock
+        floatingAnchor = try c.decodeIfPresent(CGPoint.self, forKey: .floatingAnchor).map(ScreenFit.clampedAnchor)
     }
 
     /// 2.5 以前那块「Snug 手机屏」：名字、身份都不变，远控里看到的和以前一样

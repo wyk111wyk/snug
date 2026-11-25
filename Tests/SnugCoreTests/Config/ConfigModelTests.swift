@@ -267,4 +267,54 @@ struct ConfigModelTests {
         none.lastVersion = v262
         #expect(none.dropRemoteOnlyMain(running: v270) == nil)
     }
+
+    @Test("收藏：默认空；收藏 / 取消收藏交回有没有真的变；编码按字典序、解码原样带回")
+    func favorites() throws {
+        var c = AppConfig()
+        #expect(c.favorites.isEmpty)
+        #expect(!c.isFavorite("com.apple.Notes"))
+        let added = c.setFavorite("com.apple.Notes", true)
+        #expect(added)
+        #expect(c.isFavorite("com.apple.Notes"))
+        let addedAgain = c.setFavorite("com.apple.Notes", true)   // 再收藏一次不算变了
+        #expect(!addedAgain)
+        let removed = c.setFavorite("com.apple.Notes", false)
+        #expect(removed)
+        #expect(!c.isFavorite("com.apple.Notes"))
+        let removedAgain = c.setFavorite("com.apple.Notes", false)
+        #expect(!removedAgain)
+        let blank = c.setFavorite("", true)                      // 空 bundleID 忽略
+        #expect(!blank)
+        var kept = AppConfig()
+        kept.setFavorite("b", true)
+        kept.setFavorite("a", true)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(kept)) as? [String: Any]
+        #expect(json?["favorites"] as? [String] == ["a", "b"])
+        #expect(try JSONDecoder().decode(AppConfig.self, from: JSONEncoder().encode(kept)) == kept)
+    }
+
+    @Test("默认不自动检查更新；老配置没有这个字段时也按默认（关）")
+    func autoUpdateDefault() throws {
+        #expect(!AppConfig().autoUpdate)
+        #expect(try decode(#"{"zoomSteps":3}"#).autoUpdate == false)
+        #expect(try decode(#"{"autoUpdate":true}"#).autoUpdate)
+    }
+
+    @Test("屏幕项没有 touchBar / floatingAnchor（老配置）时按默认读：底部横条、位置 nil，不丢这块屏")
+    func screenTouchBarDefaults() throws {
+        let item = #"{"id":"a","orientation":"portrait","device":{"screen":{"width":1080,"height":2400}},"enabled":true,"name":"A","serials":[1,2,3]}"#
+        let c = try decode(#"{"screens":[\#(item)]}"#)
+        #expect(c.screens.count == 1)
+        #expect(c.screens[0].touchBar == .dock)
+        #expect(c.screens[0].floatingAnchor == nil)
+    }
+
+    @Test("屏幕项写了 touchBar / floatingAnchor：原样读回，越界的位置夹在 0…1")
+    func screenTouchBarRoundTrip() throws {
+        let item = #"{"id":"a","orientation":"portrait","device":{"screen":{"width":1080,"height":2400}},"enabled":true,"name":"A","serials":[1],"touchBar":"floating","floatingAnchor":[1.4,-0.3]}"#
+        let c = try decode(#"{"screens":[\#(item)]}"#)
+        #expect(c.screens[0].touchBar == .floating)
+        #expect(c.screens[0].floatingAnchor == CGPoint(x: 1, y: 0))
+        #expect(try JSONDecoder().decode(AppConfig.self, from: JSONEncoder().encode(c)) == c)
+    }
 }

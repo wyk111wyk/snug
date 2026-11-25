@@ -87,7 +87,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startMonitoring() {
         controller.start()
         controller.refreshLaunchAtLogin()
-        controller.updater.check(userInitiated: false, waitForNetwork: launchedAtLogin)
+        // 默认不自动检查更新（自用 fork 不跟上游版本走）；要跟的话把 config.json 里的 autoUpdate 改成 true
+        if controller.state.config.autoUpdate {
+            controller.updater.check(userInitiated: false, waitForNetwork: launchedAtLogin)
+        }
         let updated = controller.recordVersion()
         if !controller.state.config.welcomed {
             if !controller.state.launchAtLogin { controller.setLaunchAtLogin(true) }

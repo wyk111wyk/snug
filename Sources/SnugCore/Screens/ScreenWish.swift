@@ -44,13 +44,19 @@ public struct ScreenBehavior: Equatable, Sendable {
     /// 触屏用的屏（手机、平板）：屏上有 App 资源库和小横条，翻译手势（设置里开着时），放上来的窗口铺满整块屏、
     /// 按窗口换档、放大字号。电脑屏没有面板，App 资源库从菜单栏打开，窗口只挪过来，大小、字号不动
     public var touch: Bool
+    /// 触屏屏底部的控件：底部横条，还是可拖的悬浮按钮。电脑屏用不到
+    public var bar: TouchBarStyle
 
-    public init(touch: Bool) {
+    public init(touch: Bool, bar: TouchBarStyle = .dock) {
         self.touch = touch
+        self.bar = bar
     }
 
-    public static let touchScreen = ScreenBehavior(touch: true)
-    public static let computer = ScreenBehavior(touch: false)
+    public static let touchScreen = ScreenBehavior(touch: true, bar: .dock)
+    public static let computer = ScreenBehavior(touch: false, bar: .dock)
+
+    /// 一块触屏，用哪种底部控件
+    public static func touch(_ bar: TouchBarStyle) -> ScreenBehavior { ScreenBehavior(touch: true, bar: bar) }
 }
 
 public struct ScreenWish: Equatable, Sendable {

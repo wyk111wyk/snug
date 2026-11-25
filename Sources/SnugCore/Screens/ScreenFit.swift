@@ -140,12 +140,47 @@ public struct ScreenFit: Equatable, Sendable, CustomStringConvertible {
     public static func homeBarHeight(screen: CGSize) -> CGFloat {
         (baseHomeBarHeight * scale(screen: screen)).rounded()
     }
+
+    // MARK: 悬浮按钮
+
+    /// 悬浮按钮的直径、两个圆之间的间距、离屏边的最小间距（基准宽度下，点）。跟着档位缩放（见 scale）
+    public static let floatingButtonSize: CGFloat = 56
+    public static let floatingGap: CGFloat = 8
+    public static let floatingMargin: CGFloat = 12
+    /// 没拖过时按钮的位置：贴着右缘、上下居中（避开 UU远程 顶部的圆形菜单和底部的工具栏）
+    public static let defaultFloatingAnchor = CGPoint(x: 1, y: 0.5)
+
+    /// 悬浮控件的外框（和传进来的 area 同一套坐标，左上原点）。anchor 是控件中心，按 area 归一化（0…1）；
+    /// showsCamera 时左边多一个相机键。AppController 算手势范围里的「洞」、界面摆面板都调它，保证两边一致
+    public static func floatingBarFrame(in area: CGRect, anchor: CGPoint?, showsCamera: Bool) -> CGRect {
+        let scale = scale(screen: area.size)
+        let diameter = (floatingButtonSize * scale).rounded()
+        let gap = (floatingGap * scale).rounded()
+        let margin = floatingMargin * scale
+        let width = showsCamera ? diameter * 2 + gap : diameter
+        let spot = clampedAnchor(anchor ?? defaultFloatingAnchor)
+        var center = CGPoint(x: area.minX + spot.x * area.width, y: area.minY + spot.y * area.height)
+        center.x = min(max(center.x, area.minX + margin + width / 2), area.maxX - margin - width / 2)
+        center.y = min(max(center.y, area.minY + margin + diameter / 2), area.maxY - margin - diameter / 2)
+        return CGRect(x: center.x - width / 2, y: center.y - diameter / 2, width: width, height: diameter)
+    }
+
+    /// 控件在 area 里的位置（中心，归一化）：拖完后按它记进配置
+    public static func floatingAnchor(of frame: CGRect, in area: CGRect) -> CGPoint {
+        guard area.width > 0, area.height > 0 else { return defaultFloatingAnchor }
+        return clampedAnchor(CGPoint(x: (frame.midX - area.minX) / area.width, y: (frame.midY - area.minY) / area.height))
+    }
+
+    /// 归一化位置夹在 0…1
+    public static func clampedAnchor(_ anchor: CGPoint) -> CGPoint {
+        CGPoint(x: min(max(anchor.x, 0), 1), y: min(max(anchor.y, 0), 1))
+    }
 }
 
 extension TouchRegion {
     /// 手势翻译管整块屏，阈值按这一档比设计尺寸大几倍放大（和小横条一样，在手机上划着手感不变）。
-    /// closeButton：屏上那个窗口的关闭按钮，点它时交给 Snug 先放回原位再关
-    public init(screen bounds: CGRect, closeButton: CloseButton? = nil) {
-        self.init(frame: bounds, scale: ScreenFit.scale(screen: bounds.size), closeButton: closeButton)
+    /// closeButton：屏上那个窗口的关闭按钮，点它时交给 Snug 先放回原位再关；hole：悬浮按钮占的那块，落在里面不翻译
+    public init(screen bounds: CGRect, closeButton: CloseButton? = nil, hole: CGRect? = nil) {
+        self.init(frame: bounds, scale: ScreenFit.scale(screen: bounds.size), closeButton: closeButton, hole: hole)
     }
 }

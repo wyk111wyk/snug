@@ -39,6 +39,16 @@ public enum Screens {
     public static func axRect(fromAppKit rect: CGRect) -> CGRect {
         CGRect(x: rect.minX, y: (primary?.frame.height ?? 0) - rect.maxY, width: rect.width, height: rect.height)
     }
+
+    /// 辅助功能坐标 → AppKit 坐标（和上面同一个换算，两个方向对称）
+    public static func appKitRect(fromAX rect: CGRect) -> CGRect {
+        CGRect(x: rect.minX, y: (primary?.frame.height ?? 0) - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    /// 这块屏上能放悬浮按钮的范围（辅助功能坐标）：去掉菜单栏那一块
+    public static func usableArea(for id: DisplayID) -> CGRect? {
+        screen(for: id).map { axRect(fromAppKit: $0.visibleFrame) }
+    }
 }
 
 extension NSScreen {

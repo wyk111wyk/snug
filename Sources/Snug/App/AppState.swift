@@ -118,6 +118,10 @@ protocol AppIntents: AnyObject, Sendable {
     func setMainScreen(_ id: ScreenID?)
     func setGestures(_ on: Bool)
     func setZoomSteps(_ steps: Int)
+    /// 收藏 / 取消收藏一个 App（App 资源库「全部」页里置顶）
+    func setFavorite(_ bundleID: String, _ on: Bool)
+    /// 触屏屏底部的控件：底部横条 / 悬浮按钮
+    func setScreenTouchBar(_ id: ScreenID, _ bar: TouchBarStyle)
     func setLaunchAtLogin(_ on: Bool)
     /// 开机启动待允许：直接打开系统设置的「登录项」
     func openLoginItemsSettings()
@@ -154,6 +158,10 @@ protocol TouchIntents: AnyObject, Sendable {
     func zoom(by delta: Int)
     /// 换这块屏的型号
     func setDevice(_ device: DeviceChoice)
+    /// 收藏 / 取消收藏这个 App（全局一份，各块屏的资源库一起变）
+    func setFavorite(_ bundleID: String, _ on: Bool)
+    /// 拖完悬浮按钮，记下它的位置（中心点，按这块屏归一化）
+    func setFloatingAnchor(_ anchor: CGPoint)
     /// 退出这块屏：这次远程不再显示（见 DeskSet.dismissScreen）
     func dismissScreen()
     /// 取消设为主屏（设为主屏的那块屏上点的）：主屏改回 Mac，这块屏不再常驻

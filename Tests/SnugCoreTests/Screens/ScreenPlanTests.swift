@@ -88,6 +88,17 @@ struct ScreenPlanTests {
         c.screens.append(ScreenConfig(id: .make(), orientation: .portrait, device: .standard, enabled: true, name: "手改的", serials: [1]))
         #expect(ScreenPlan.wishes(config: c, remote: remote, trusted: true).count == ScreenConfig.limit)
     }
+
+    @Test("底部控件：行为带着屏幕配置里的样式走；手机默认底部横条，改成悬浮按钮后 wishes 里的行为跟着变")
+    func touchBarStyle() {
+        #expect(ScreenPlan.behavior(.phone) == .touchScreen)                  // 默认底部横条
+        #expect(ScreenPlan.behavior(.phone, bar: .floating) == .touch(.floating))
+        #expect(ScreenPlan.behavior(.computer, bar: .floating) == .computer)  // 电脑屏没有底部控件
+        var c = config()
+        c.screens[1].touchBar = .floating
+        let wishes = ScreenPlan.wishes(config: c, remote: remote, trusted: true)
+        #expect(wishes.map(\.behavior.bar) == [.dock, .floating])
+    }
 }
 
 @Suite("屏幕列表 ScreenConfig")

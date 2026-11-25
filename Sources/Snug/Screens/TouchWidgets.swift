@@ -36,16 +36,19 @@ struct AppRowLabel: View {
     }
 }
 
-/// 圆形的图标按钮：新建窗口、退出、字号
+/// 圆形的图标按钮：新建窗口、退出、收藏、字号
 struct RoundButton: View {
     let symbol: String
     let label: String
+    /// 图标颜色；nil 用主色（收藏后星标用强调色）
+    var tint: Color? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(TouchTokens.Font.headline.font)
+                .foregroundStyle(tint ?? Color.primary)
                 .frame(width: TouchTokens.Size.touchTarget, height: TouchTokens.Size.touchTarget)
                 .background(TouchTokens.Color.background, in: Circle())
         }
