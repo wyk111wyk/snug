@@ -249,7 +249,7 @@ final class AppController: Sendable {
     /// 悬浮按钮此刻占的那块（辅助功能坐标）：按下去落在里面就不翻译手势，整个手势交给按钮自己。
     /// 只在窗口铺满、按钮露着（列表收着、不在裁剪）时留这个洞
     private func floatingHole(id: ScreenID, desk: Desk.State, display: DisplayID) -> CGRect? {
-        guard desk.behavior.touch, desk.behavior.bar == .floating, !desk.listVisible, desk.placed != nil,
+        guard desk.behavior.touch, desk.behavior.bar.floats, !desk.listVisible, desk.placed != nil,
               let area = Screens.usableArea(for: display) else { return nil }
         let anchor = store.config.screens.first { $0.id == id }?.floatingAnchor
         return ScreenFit.floatingBarFrame(in: area, anchor: anchor, showsCamera: store.config.screenshot)

@@ -303,4 +303,13 @@ struct ConfigModelTests {
         #expect(c.screens[0].floatingAnchor == CGPoint(x: 1, y: 0))
         #expect(try JSONDecoder().decode(AppConfig.self, from: JSONEncoder().encode(c)) == c)
     }
+
+    @Test("底部控件三选一：docks 决定屏底留不留那一条，floats 决定有没有悬浮按钮；both 也读得出")
+    func touchBarStyles() throws {
+        #expect(TouchBarStyle.dock.docks && !TouchBarStyle.dock.floats)
+        #expect(!TouchBarStyle.floating.docks && TouchBarStyle.floating.floats)
+        #expect(TouchBarStyle.both.docks && TouchBarStyle.both.floats)
+        let item = #"{"id":"a","orientation":"portrait","device":{"screen":{"width":1080,"height":2400}},"enabled":true,"name":"A","serials":[1],"touchBar":"both"}"#
+        #expect(try decode(#"{"screens":[\#(item)]}"#).screens[0].touchBar == .both)
+    }
 }

@@ -4,18 +4,26 @@
 import CoreGraphics
 import Foundation
 
-/// 触屏屏底部的控件：底部横条（点一下回 App 资源库），或浮在窗口上、可拖到任意位置的按钮。
+/// 触屏屏底部的控件：底部横条（点一下回 App 资源库）、浮在窗口上可拖到任意位置的悬浮按钮，或两者同时显示。
 /// 被 UU远程 的工具栏压在下面时换成悬浮按钮（见 docs/how-it-works.md「App 资源库」）
 public enum TouchBarStyle: String, Codable, Sendable, CaseIterable {
     case dock
     case floating
+    /// 底部横条与悬浮按钮同时显示
+    case both
 
     public var title: String {
         switch self {
         case .dock: "底部横条"
         case .floating: "悬浮按钮"
+        case .both: "两个都要"
         }
     }
+
+    /// 屏底有没有横条（有就让出底部那一条）
+    public var docks: Bool { self != .floating }
+    /// 有没有悬浮按钮
+    public var floats: Bool { self != .dock }
 }
 
 public struct ScreenConfig: Codable, Equatable, Sendable, Identifiable {

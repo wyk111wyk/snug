@@ -93,6 +93,7 @@ struct ScreenPlanTests {
     func touchBarStyle() {
         #expect(ScreenPlan.behavior(.phone) == .touchScreen)                  // 默认底部横条
         #expect(ScreenPlan.behavior(.phone, bar: .floating) == .touch(.floating))
+        #expect(ScreenPlan.behavior(.phone, bar: .both) == .touch(.both))
         #expect(ScreenPlan.behavior(.computer, bar: .floating) == .computer)  // 电脑屏没有底部控件
         var c = config()
         c.screens[1].touchBar = .floating

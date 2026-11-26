@@ -53,10 +53,11 @@ final class ScreenWindows {
     private let intents: any TouchIntents
     private var display: DisplayID?
     private var list: TouchPanel?
-    /// 屏底部的控件：底部横条，或浮在窗口上、可拖的悬浮按钮。用哪种跟着这块屏的行为走
-    private var bar: TouchPanel?
+    /// 屏底部的控件：底部横条和 / 或悬浮按钮，跟着这块屏的行为走
     private var barKind: TouchBarStyle?
+    private var dockBar: TouchPanel?
     private var dockView: HomeBarView?
+    private var floatBar: TouchPanel?
     private var floatView: FloatingBarView?
     /// 截图后浮在小横条上方的那一块（缩略图或提示），和它此刻显示的是什么
     private var overlay: TouchPanel?
@@ -64,6 +65,8 @@ final class ScreenWindows {
     private var cropPanel: TouchPanel?
     private var screenObserver: (any NSObjectProtocol)?
     private var closed = false
+    /// 底部控件此刻露着没有：露出来的那一下让悬浮按钮重新计时（空闲变淡）
+    private var barsShown = false
 
     init(id: ScreenID, state: AppState, catalog: AppCatalog, intents: any TouchIntents) {
         self.id = id
@@ -119,17 +122,20 @@ final class ScreenWindows {
             tearDown(because: "换到 #\(display)")
             build(on: display)
         }
-        // 底部控件换了样式（横条 ⇄ 悬浮按钮）：只重建这一块，不动资源库
-        if panel.behavior.bar != barKind { rebuildBar(panel.behavior.bar, on: display) }
-        guard let list, let bar else { return }
+        // 底部控件换了样式（横条 ⇄ 悬浮按钮 ⇄ 两个都要）：只重建这两块，不动资源库
+        if panel.behavior.bar != barKind { rebuildBars(panel.behavior.bar, on: display) }
+        guard let list else { return }
         list.setFrame(screen.frame, display: true)
-        // 悬浮按钮正在被拖：别在当前这拍把它拽回记下的位置（松手时自己会记新的）
-        if floatView?.isDragging != true { bar.setFrame(barFrame(on: screen), display: true) }
         let scale = ScreenFit.scale(screen: screen.frame.size)
+        dockBar?.setFrame(dockBarFrame(on: screen), display: true)
         dockView?.scale = scale
-        floatView?.scale = scale
         dockView?.showsCamera = state.config.screenshot
-        floatView?.showsCamera = state.config.screenshot
+        if let frame = floatingBarFrame(on: screen) {
+            // 悬浮按钮正在被拖：别在当前这拍把它拽回记下的位置（松手时自己会记新的）
+            if floatView?.isDragging != true { floatBar?.setFrame(frame, display: true) }
+            floatView?.scale = scale
+            floatView?.showsCamera = state.config.screenshot
+        }
 
         let showList = panel.listVisible || panel.placed == nil
         let watching = state.watching(id)
@@ -152,7 +158,17 @@ final class ScreenWindows {
             catalog.release(id.rawValue)
         }
         let cropping = screenshot?.isCropping == true
-        if panel.placed != nil, !showList, !cropping { bar.orderFrontRegardless() } else { bar.orderOut(nil) }
+        let barsVisible = panel.placed != nil && !showList && !cropping
+        if barsVisible {
+            // 刚从收起变成露出：悬浮按钮恢复不透明、重新计时（空闲变淡）
+            if !barsShown { floatView?.beginIdleCountdown() }
+            dockBar?.orderFrontRegardless()
+            floatBar?.orderFrontRegardless()
+        } else {
+            dockBar?.orderOut(nil)
+            floatBar?.orderOut(nil)
+        }
+        barsShown = barsVisible
         updateOverlay(on: screen, hidden: showList)
         updateCrop(on: screen)
     }
@@ -183,7 +199,7 @@ final class ScreenWindows {
             panel.ignoresMouseEvents = !preview
         }
         let size = panel.contentView?.fittingSize ?? .zero
-        let barRect = barFrame(on: screen)
+        let barRect = overlayAnchorFrame(on: screen)
         // 横条：缩略图靠左、就在相机键上方；悬浮按钮：靠它左上方。提示都居中在它的上方
         let x = preview ? barRect.minX + 12 * scale : barRect.midX - size.width / 2
         panel.setFrame(NSRect(origin: CGPoint(x: x, y: barRect.maxY + 8 * scale), size: size), display: true)
@@ -211,42 +227,51 @@ final class ScreenWindows {
         display = id
         list = TouchPanel(content: FirstMouseHostingView(rootView: TouchHomeView(screen: self.id, state: state, catalog: catalog, pages: pages,
                                                                                  intents: intents).screenPanel(self.id, state: state)))
-        buildBar(panelBehavior.bar)
+        buildBars(panelBehavior.bar)
     }
 
     /// 这块屏此刻该用哪种底部控件（按行为走）
     private var panelBehavior: ScreenBehavior { state.desks.desks[id]?.behavior ?? .touchScreen }
 
-    /// 建底部控件：横条或悬浮按钮，只建要用的那一个
-    private func buildBar(_ kind: TouchBarStyle) {
+    /// 建底部控件：按样式建横条和 / 或悬浮按钮
+    private func buildBars(_ kind: TouchBarStyle) {
         barKind = kind
-        switch kind {
-        case .dock:
-            let view = HomeBarView()
-            view.onActivate = { [weak self] in self?.intents.showList() }
-            view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
-            dockView = view
-            bar = TouchPanel(content: view)
-        case .floating:
-            let view = FloatingBarView()
-            view.onActivate = { [weak self] in self?.intents.showList() }
-            view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
-            view.onMoved = { [weak self] frame in self?.commitAnchor(frame) }
-            floatView = view
-            // 悬浮按钮是个圆，面板透明（背景由按钮自己画）
-            bar = TouchPanel(content: view, opaque: false)
-        }
+        if kind.docks { buildDock() }
+        if kind.floats { buildFloat() }
     }
 
-    /// 换了底部控件：拆掉旧的那块面板，按新样式建一个（资源库面板不动）
-    private func rebuildBar(_ kind: TouchBarStyle, on display: DisplayID) {
+    private func buildDock() {
+        let view = HomeBarView()
+        view.onActivate = { [weak self] in self?.intents.showList() }
+        view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
+        dockView = view
+        dockBar = TouchPanel(content: view)
+    }
+
+    private func buildFloat() {
+        let view = FloatingBarView()
+        view.onActivate = { [weak self] in self?.intents.showList() }
+        view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
+        view.onMoved = { [weak self] frame in self?.commitAnchor(frame) }
+        floatView = view
+        // 悬浮按钮是个圆，面板透明（背景由按钮自己画）
+        floatBar = TouchPanel(content: view, opaque: false)
+    }
+
+    /// 换了底部控件：拆掉旧的两块面板，按新样式重建（资源库面板不动）
+    private func rebuildBars(_ kind: TouchBarStyle, on display: DisplayID) {
         Log.info("屏（\(self.id)）的底部控件换成\(kind.title)")
-        bar?.orderOut(nil)
-        bar = nil
+        dockBar?.orderOut(nil)
+        floatBar?.orderOut(nil)
+        floatView?.stopIdleCountdown()
+        dockBar = nil
         dockView = nil
+        floatBar = nil
         floatView = nil
-        buildBar(kind)
-        if let bar, let screen = Screens.screen(for: display) { bar.setFrame(barFrame(on: screen), display: true) }
+        buildBars(kind)
+        guard let screen = Screens.screen(for: display) else { return }
+        dockBar?.setFrame(dockBarFrame(on: screen), display: true)
+        if let frame = floatingBarFrame(on: screen) { floatBar?.setFrame(frame, display: true) }
     }
 
     private func tearDown(because reason: String) {
@@ -254,34 +279,42 @@ final class ScreenWindows {
         catalog.release(id.rawValue)
         pages.close()
         list?.orderOut(nil)
-        bar?.orderOut(nil)
+        dockBar?.orderOut(nil)
+        floatBar?.orderOut(nil)
+        floatView?.stopIdleCountdown()
         overlay?.orderOut(nil)
         cropPanel?.orderOut(nil)
         list = nil
-        bar = nil
-        barKind = nil
+        dockBar = nil
         dockView = nil
+        floatBar = nil
         floatView = nil
+        barKind = nil
         overlay = nil
         overlayShown = nil
         cropPanel = nil
         display = nil
     }
 
-    /// 底部控件在这一档屏上的外框：横条占可见区底部那一条（放上来的窗口正好让出它，见 ScreenFit.homeBarHeight）；
-    /// 悬浮按钮浮在窗口上，按记下的位置摆（见 ScreenFit.floatingBarFrame）
-    private func barFrame(on screen: NSScreen) -> NSRect {
-        switch barKind {
-        case .floating:
-            guard let display, let area = Screens.usableArea(for: display) else { return .zero }
-            let frame = ScreenFit.floatingBarFrame(in: area, anchor: state.screen(id)?.floatingAnchor,
-                                                   showsCamera: state.config.screenshot)
-            return Screens.appKitRect(fromAX: frame)
-        case .dock, nil:
-            let visible = screen.visibleFrame
-            return NSRect(x: visible.minX, y: visible.minY, width: visible.width,
-                          height: ScreenFit.homeBarHeight(screen: screen.frame.size))
-        }
+    /// 底部横条在这一档屏上的外框：可见区底部那一条（放上来的窗口正好让出它，见 ScreenFit.homeBarHeight）
+    private func dockBarFrame(on screen: NSScreen) -> NSRect {
+        let visible = screen.visibleFrame
+        return NSRect(x: visible.minX, y: visible.minY, width: visible.width,
+                      height: ScreenFit.homeBarHeight(screen: screen.frame.size))
+    }
+
+    /// 悬浮按钮的外框：浮在窗口上，按记下的位置摆（见 ScreenFit.floatingBarFrame）。这块屏没要悬浮按钮时 nil
+    private func floatingBarFrame(on screen: NSScreen) -> NSRect? {
+        guard barKind?.floats == true else { return nil }
+        let area = Screens.axRect(fromAppKit: screen.visibleFrame)
+        let frame = ScreenFit.floatingBarFrame(in: area, anchor: state.screen(id)?.floatingAnchor,
+                                               showsCamera: state.config.screenshot)
+        return Screens.appKitRect(fromAX: frame)
+    }
+
+    /// 截图浮层靠哪一块摆：有悬浮按钮就靠它，否则靠底部横条
+    private func overlayAnchorFrame(on screen: NSScreen) -> NSRect {
+        floatingBarFrame(on: screen) ?? dockBarFrame(on: screen)
     }
 
     /// 悬浮按钮拖完了：按它落下的位置记成归一化的锚点，再把面板夹回屏内（拖到屏外的部分回弹）
@@ -289,7 +322,7 @@ final class ScreenWindows {
         guard let display, let area = Screens.usableArea(for: display) else { return }
         let anchor = ScreenFit.floatingAnchor(of: Screens.axRect(fromAppKit: frame), in: area)
         let clamped = ScreenFit.floatingBarFrame(in: area, anchor: anchor, showsCamera: state.config.screenshot)
-        bar?.setFrame(Screens.appKitRect(fromAX: clamped), display: true)
+        floatBar?.setFrame(Screens.appKitRect(fromAX: clamped), display: true)
         intents.setFloatingAnchor(anchor)
     }
 
@@ -430,6 +463,9 @@ final class HomeBarView: NSView {
 final class FloatingBarView: NSView {
     /// 基准宽度下挪过这么多点算拖动，没到算点一下
     static let dragThreshold: CGFloat = 8
+    /// 一段时间没碰就淡到这个透明度，好看清下面的内容；一碰就恢复
+    static let idleAlpha: CGFloat = 0.3
+    static let idleDelay: TimeInterval = 4
 
     var onActivate: (() -> Void)?
     var onCapture: (() -> Void)?
@@ -456,6 +492,8 @@ final class FloatingBarView: NSView {
     private var moved = false
     /// 正在拖着（按下到抬起之间）：ScreenWindows 别在这一刻把它摆回记下的位置
     private(set) var isDragging = false
+    /// 空闲变淡的计时器
+    private var fadeTimer: Timer?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -504,21 +542,42 @@ final class FloatingBarView: NSView {
         if showsCamera { drawKnob(cameraArea) }
     }
 
-    /// 一个圆：卡片色底 + 细描边 + 投影，浮在任意窗口上都看得清
+    /// 一个圆：卡片色底 + 细描边。不画阴影——面板正好是控件那么大，阴影会被裁掉，留着不画
     private func drawKnob(_ rect: NSRect) {
         let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5))
-        NSGraphicsContext.saveGraphicsState()
-        let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
-        shadow.shadowBlurRadius = 12 * scale
-        shadow.shadowOffset = NSSize(width: 0, height: -2 * scale)
-        shadow.set()
         TouchTokens.Color.cardNSColor.setFill()
         circle.fill()
-        NSGraphicsContext.restoreGraphicsState()
         TouchTokens.Color.separatorNSColor.setStroke()
         circle.lineWidth = 1
         circle.stroke()
+    }
+
+    /// 露出来时调：恢复不透明，重新计时
+    func beginIdleCountdown() {
+        setDimmed(false)
+        restFade()
+    }
+
+    /// 拆掉时调：停掉计时器，免得它留着
+    func stopIdleCountdown() {
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+    }
+
+    private func restFade() {
+        fadeTimer?.invalidate()
+        let timer = Timer(timeInterval: Self.idleDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setDimmed(true) }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        fadeTimer = timer
+    }
+
+    private func setDimmed(_ dimmed: Bool) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = MotionTokens.fast
+            animator().alphaValue = dimmed ? Self.idleAlpha : 1
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -526,6 +585,9 @@ final class FloatingBarView: NSView {
         startOrigin = window?.frame.origin ?? .zero
         moved = false
         isDragging = true
+        // 一碰就恢复，并在松手后再重新计时
+        setDimmed(false)
+        fadeTimer?.invalidate()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -539,6 +601,7 @@ final class FloatingBarView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         isDragging = false
+        restFade()
         guard let window else { return }
         if moved {
             onMoved?(window.frame)

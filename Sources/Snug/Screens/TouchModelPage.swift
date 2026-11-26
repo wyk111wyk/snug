@@ -56,9 +56,10 @@ struct TouchModelPage: View {
                 TitledSection("当前 · 这块屏按它调整比例") { CurrentPhone(choice: current, orientation: orientation) }
                 TitledSection("屏幕控件") {
                     VStack(spacing: 0) {
-                        barChoice(.dock)
-                        Divider().padding(.leading, TouchTokens.Space.margin)
-                        barChoice(.floating)
+                        ForEach(Array(TouchBarStyle.allCases.enumerated()), id: \.element) { index, bar in
+                            if index > 0 { Divider().padding(.leading, TouchTokens.Space.margin) }
+                            barChoice(bar)
+                        }
                     }
                     .card()
                 }
@@ -117,6 +118,7 @@ struct TouchModelPage: View {
         switch bar {
         case .dock: "屏底一条横条，点它回 App 资源库"
         case .floating: "浮在窗口上，可拖到任意位置；被 UU 工具栏挡住时用"
+        case .both: "横条和悬浮按钮都在"
         }
     }
 }

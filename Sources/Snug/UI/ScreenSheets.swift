@@ -157,12 +157,12 @@ struct ScreenDetailSheet: View {
                                                                   set: { intents.setScreenTouchBar(id, $0) })) {
                                 ForEach(TouchBarStyle.allCases, id: \.self) { Text($0.title).tag($0) }
                             }
-                            .pickerStyle(.segmented)
+                            .pickerStyle(.menu)
                             .labelsHidden()
                             .fixedSize()
                         } label: {
                             Text("屏幕控件")
-                            Text("被 UU远程 工具栏挡住时换成悬浮按钮")
+                            Text("底部横条、悬浮按钮，或两个都要")
                         }
                     }
                 } footer: {
