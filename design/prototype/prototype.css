@@ -342,7 +342,10 @@ figure.frame figcaption b { display: block; color: var(--board-ink); font: var(-
   font: var(--touch-font-caption); color: var(--touch-secondary-label); }
 .t-fav .fh .sym { font-size: 20px; color: var(--touch-secondary-label); }
 .t-fav .fr { display: flex; align-items: center; gap: var(--touch-space-m); padding: 0 var(--touch-space-m); height: 52px; border-top: 1px solid var(--touch-separator); }
+.t-fav .fr.on { background: var(--touch-tint-fill); }
 .t-fav .fr img { width: 32px; height: 32px; }
+.t-fav .fr .nm { display: flex; align-items: center; gap: var(--touch-space-s); }
+.t-fav .fr .badge { font: var(--touch-font-caption); color: var(--touch-tint); background: var(--touch-card); border-radius: 999px; padding: 0 var(--touch-space-s); }
 .t-fav .fr b { display: block; font: var(--touch-font-label); }
 .t-fav .fr small { display: block; font: var(--touch-font-caption); color: var(--touch-secondary-label); }
 

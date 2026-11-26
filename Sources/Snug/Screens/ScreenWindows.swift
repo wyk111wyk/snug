@@ -393,28 +393,40 @@ final class ScreenWindows {
         floatBar?.orderFrontRegardless()
     }
 
-    /// 收藏的 App（按名字）和它此刻的活跃窗口名
+    /// 第一行是这块屏上正在前台的那个 App（不管收没收藏），其余是收藏的 App（去掉已经在前台的那个），一共最多 favoritesLimit 行
     private func favoriteRows() -> [FavoriteSwitcher.Row] {
-        catalog.installed.filter { state.config.favorites.contains($0.app.bundleID) }
-            .prefix(Self.favoritesLimit)
-            .map { item in
+        var rows: [FavoriteSwitcher.Row] = []
+        let placed = state.panel(id).placed?.window
+        if let placed {
+            rows.append(FavoriteSwitcher.Row(app: catalog.app(of: placed).app, window: placed.displayTitle, active: true))
+        }
+        let rest = catalog.installed
+            .filter { state.config.favorites.contains($0.app.bundleID) && $0.app.bundleID != placed?.bundleID }
+            .prefix(Self.favoritesLimit - rows.count)
+            .map { item -> FavoriteSwitcher.Row in
                 let running = catalog.running(item.app)
                 let window = running?.windows.first?.displayTitle
-                return FavoriteSwitcher.Row(app: item.app, window: window ?? (running == nil ? "未运行" : "无窗口"))
+                return FavoriteSwitcher.Row(app: item.app, window: window ?? (running == nil ? "未运行" : "无窗口"), active: false)
             }
+        return rows + rest
     }
 
     private func pickFavorite(_ app: AppInfo) {
         // 不马上收起：选中的那行转圈，等这块屏做完再收（见 update）
         pendingFavorite = app
         favoriteWasWorking = false
+        armFavoritesTimeout()
+        intents.open(app)
+    }
+
+    /// 点了以后留个兜底：切换的正常路径会先把收藏条收掉，这条只防止它一直挂着
+    private func armFavoritesTimeout() {
         favoritesTimer?.invalidate()
         let timer = Timer(timeInterval: Self.favoritesSwitchTimeout, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.hideFavorites() }
         }
         RunLoop.main.add(timer, forMode: .common)
         favoritesTimer = timer
-        intents.open(app)
     }
 
     private func hideFavorites() {

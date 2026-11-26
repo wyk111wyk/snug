@@ -226,14 +226,16 @@ extension View {
 }
 
 /// 长按悬浮按钮跳出的收藏应用快捷切换：像主界面「运行中」那样，一行一个 App（小图标 + App 名 + 当前活跃窗口名），
-/// 但更紧凑。点一行就用那块屏打开它；右上角 ✕ 关闭（点背景也关，见 ScreenWindows）。
+/// 但更紧凑。第一行固定是这块屏上正在前台的那个 App（不管收没收藏），带「已激活」标记，点它是关闭；
+/// 其余是收藏的 App，点一下就用这块屏打开它。右上角 ✕ 关闭（点背景也关，见 ScreenWindows）。
 /// 冒出来的动效：一行行从按钮那一侧（下方）依次弹起、放大、淡入。点了以后不立刻消失：
-/// 选中的那行转圈、其余变淡，等 ScreenWindows 确认切换完成再收起
+/// 选中的那行转圈、其余变淡，等切换 / 关闭做完再收起
 struct FavoriteSwitcher: View {
-    /// 一行：一个收藏的 App，和它此刻的活跃窗口（没在跑 / 没窗口时给一句话）
+    /// 一行：一个 App，和它此刻的活跃窗口；active 是这块屏上正在前台的那个
     struct Row: Identifiable, Hashable {
         let app: AppInfo
         let window: String
+        let active: Bool
         var id: String { app.bundleID }
     }
 
@@ -281,6 +283,8 @@ struct FavoriteSwitcher: View {
     private func rowView(_ row: Row, index: Int) -> some View {
         let choosing = picked == row.id
         return Button {
+            // 「已激活」那一行点了只是把列表收起，不动 App
+            if row.active { close(); return }
             picked = row.id
             pick(row.app)
         } label: {
@@ -291,22 +295,36 @@ struct FavoriteSwitcher: View {
                     AppIcon(image: icon(row.app), size: Self.iconSize)
                 }
                 VStack(alignment: .leading, spacing: TouchTokens.Space.xxs) {
-                    Text(row.app.name).font(TouchTokens.Font.label.font).lineLimit(1)
+                    HStack(spacing: TouchTokens.Space.s) {
+                        Text(row.app.name).font(TouchTokens.Font.label.font).lineLimit(1)
+                        if row.active { activeBadge }
+                    }
                     Text(row.window).font(TouchTokens.Font.caption.font).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, TouchTokens.Space.m)
             .frame(height: 52)
+            .background(row.active ? TouchTokens.Color.tintFill : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel(row.app.name)
+        .accessibilityLabel(row.active ? "\(row.app.name)，已激活" : row.app.name)
         .opacity(picked == nil || choosing ? 1 : 0.4)
         .scaleEffect(appeared ? 1 : 0.4, anchor: .bottom)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 16)
         .animation(.spring(response: 0.32, dampingFraction: 0.7).delay(0.03 * Double(index)), value: appeared)
+    }
+
+    /// 「已激活」：正在前台的那个
+    private var activeBadge: some View {
+        Text("已激活")
+            .font(TouchTokens.Font.caption.font)
+            .foregroundStyle(TouchTokens.Color.tint)
+            .padding(.horizontal, TouchTokens.Space.s)
+            .padding(.vertical, TouchTokens.Space.xxs)
+            .background(TouchTokens.Color.card, in: Capsule())
     }
 }
 
