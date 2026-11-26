@@ -76,8 +76,10 @@ read_version() {
 IDENTITY=""        # 证书 SHA-1 或名字；空 = ad-hoc
 DEVELOPER_ID=0     # 1 = Developer ID Application：带 hardened runtime 和时间戳（公证要求）
 
-# 用哪张证书：MAC_SIGNING_IDENTITY（"-" 表示 ad-hoc）；没设就用钥匙串里唯一那张 Developer ID Application；都没有就 ad-hoc。
-# 日志里只打 SHA-1 前 8 位：证书名里带着人名和团队号
+# 用哪张证书：MAC_SIGNING_IDENTITY（"-" 表示 ad-hoc）；没设就先找能分发的 Developer ID Application，
+# 没有就退到 Apple Development（本机开发够用、身份一样稳定）；都读不到才 ad-hoc。
+# 为什么别用 ad-hoc 兜底：ad-hoc 的「指定要求」是二进制自己的哈希，每重建一次就变，辅助功能等 TCC 授权跟着失效、得每次重授权；
+# 有证书的身份要求按团队号 + bundle id 认，重建后照样有效（Apple Development 与 Developer ID 都如此）
 resolve_identity() {
   local all; all="$(security find-identity -v -p codesigning 2>/dev/null || true)"
   if [[ -n ${MAC_SIGNING_IDENTITY:-} ]]; then
@@ -88,13 +90,20 @@ resolve_identity() {
       IDENTITY="$MAC_SIGNING_IDENTITY"
     fi
   else
+    # Developer ID Application：能分发、公证。多于一张时要求指定，免得签错团队
     local found=("${(@f)$(print -r -- "$all" | awk '/"Developer ID Application: /{print $2}')}")
     found=(${found:#})
-    case ${#found} in
-      0) IDENTITY="" ;;
-      1) IDENTITY="${found[1]}" ;;
-      *) die "钥匙串里有 ${#found} 张 Developer ID Application 证书，请在 .machine.env 里用 MAC_SIGNING_IDENTITY 指定一张" ;;
-    esac
+    if (( ${#found} > 1 )); then
+      die "钥匙串里有 ${#found} 张 Developer ID Application 证书，请在 .machine.env 里用 MAC_SIGNING_IDENTITY 指定一张"
+    elif (( ${#found} == 1 )); then
+      IDENTITY="${found[1]}"
+    else
+      # 没有 Developer ID，退到 Apple Development。多张同名时随便取一张：要求按证书的 CN 认，
+      # 签哪张留下的 TCC 授权都一样
+      found=("${(@f)$(print -r -- "$all" | awk '/"Apple Development: /{print $2}')}")
+      found=(${found:#})
+      IDENTITY="${found[1]:-}"
+    fi
   fi
   DEVELOPER_ID=0
   if [[ -n $IDENTITY ]]; then
@@ -109,7 +118,7 @@ resolve_identity() {
 describe_identity() {
   if [[ -z $IDENTITY ]]; then print -- "ad-hoc"
   elif (( DEVELOPER_ID )); then print -- "Developer ID（${IDENTITY[1,8]}…）"
-  else print -- "${IDENTITY[1,8]}…"; fi
+  else print -- "本机证书（${IDENTITY[1,8]}…）"; fi
 }
 
 # 签名。时间戳服务偶尔连不上（SpeakMore 0.17.2 连着两次断在这里）：只对这一种错重签，最多 3 次
@@ -224,7 +233,7 @@ build_app() {
   step "签名：$(describe_identity)"
   sign "$APP"
   codesign --verify --strict --deep "$APP" || die "签名校验没过：$APP"
-  (( DEVELOPER_ID )) || warn "ad-hoc 签名：每次重新打包后辅助功能授权都会失效，也不能发给别人"
+  (( DEVELOPER_ID )) || [[ -n $IDENTITY ]] || warn "ad-hoc 签名：每次重新打包后辅助功能授权都会失效，也不能发给别人"
 }
 
 # App 装进 dmg：打开后左边是 Snug，右边是「应用程序」的替身，拖过去就装好
