@@ -5,6 +5,7 @@
 // 面板不抢焦点（点它不会激活 Snug），所有桌面都在，盖在这块屏的菜单栏之上；
 // 只在搜索、选型号时临时接收键盘，用完就还回去，手机上的键盘输入平时留给放上来的窗口
 import AppKit
+import QuartzCore
 import SnugCore
 import SnugSystem
 import SwiftUI
@@ -62,9 +63,13 @@ final class ScreenWindows {
     /// 长按悬浮按钮跳出的收藏应用快捷切换（浮在按钮上方）
     private var favorites: TouchPanel?
     private var favoritesTimer: Timer?
-    /// 快捷切换里最多放几个收藏的 App，浮着多久自己收起
+    /// 已经点了、正在切过去的 App：等这块屏忙完再收起收藏条（点完立刻转圈，不是干等）
+    private var pendingFavorite: AppInfo?
+    private var favoriteWasWorking = false
+    /// 快捷切换里最多放几个收藏的 App；浮着多久自己收起；点了以后最多等多久（切换本身要几秒）
     static let favoritesLimit = 6
     static let favoritesDuration: TimeInterval = 6
+    static let favoritesSwitchTimeout: TimeInterval = 15
     /// 截图后浮在小横条上方的那一块（缩略图或提示），和它此刻显示的是什么
     private var overlay: TouchPanel?
     private var overlayShown: OverlayShown?
@@ -130,6 +135,11 @@ final class ScreenWindows {
         }
         // 底部控件换了样式（横条 ⇄ 悬浮按钮 ⇄ 两个都要）：只重建这两块，不动资源库
         if panel.behavior.bar != barKind { rebuildBars(panel.behavior.bar, on: display) }
+        // 收藏快捷切换：点了以后这块屏会忙起来，等它做完再收起收藏条（这期间收藏条上的那个在转圈）
+        if pendingFavorite != nil {
+            if panel.work != nil { favoriteWasWorking = true }
+            else if favoriteWasWorking { hideFavorites() }
+        }
         guard let list else { return }
         list.setFrame(screen.frame, display: true)
         let scale = ScreenFit.scale(screen: screen.frame.size)
@@ -374,7 +384,15 @@ final class ScreenWindows {
     }
 
     private func pickFavorite(_ app: AppInfo) {
-        hideFavorites()
+        // 不马上收起：收藏条留着，选中的那个转圈，等这块屏做完再收（见 update）
+        pendingFavorite = app
+        favoriteWasWorking = false
+        favoritesTimer?.invalidate()
+        let timer = Timer(timeInterval: Self.favoritesSwitchTimeout, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hideFavorites() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        favoritesTimer = timer
         intents.open(app)
     }
 
@@ -383,6 +401,8 @@ final class ScreenWindows {
         favoritesTimer = nil
         favorites?.orderOut(nil)
         favorites = nil
+        pendingFavorite = nil
+        favoriteWasWorking = false
     }
 
     /// 浮层上显示的截图结果和当时的倍率：换了才重建视图
@@ -553,6 +573,8 @@ final class FloatingBarView: NSView {
     }
     private let grabber = NSImageView()
     private let camera = NSImageView()
+    /// 长按的进度环：按住时从 0 画满到 1（时长 = holdDelay），让人知道正在长按
+    private let holdRing = CAShapeLayer()
     /// 按下那一刻在屏幕坐标里的指针位置和窗口原点
     private var startMouse = CGPoint.zero
     private var startOrigin = CGPoint.zero
@@ -567,6 +589,7 @@ final class FloatingBarView: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
+        wantsLayer = true
         updateIcons()
         grabber.contentTintColor = .secondaryLabelColor
         camera.contentTintColor = .secondaryLabelColor
@@ -574,6 +597,12 @@ final class FloatingBarView: NSView {
         camera.isHidden = true
         addSubview(camera)
         addSubview(grabber)
+        holdRing.fillColor = nil
+        holdRing.strokeColor = NSColor.systemBlue.cgColor
+        holdRing.lineCap = .round
+        holdRing.strokeEnd = 0
+        holdRing.isHidden = true
+        layer?.addSublayer(holdRing)
     }
 
     @available(*, unavailable)
@@ -596,6 +625,11 @@ final class FloatingBarView: NSView {
         let d = diameter
         camera.frame = cameraArea
         grabber.frame = NSRect(x: bounds.width - d, y: 0, width: d, height: d)
+        // 进度环套在主按钮那个圆的外沿
+        let ringRect = NSRect(x: bounds.width - d, y: 0, width: d, height: d).insetBy(dx: 2.5 * scale, dy: 2.5 * scale)
+        holdRing.frame = bounds
+        holdRing.lineWidth = 3 * scale
+        holdRing.path = CGPath(ellipseIn: ringRect, transform: nil)
     }
 
     override var isOpaque: Bool { false }
@@ -650,6 +684,26 @@ final class FloatingBarView: NSView {
         }
     }
 
+    /// 按住时进度环从 0 画满到 1（时长 = holdDelay），让人知道正在长按
+    private func startHoldRing() {
+        holdRing.removeAllAnimations()
+        holdRing.isHidden = false
+        holdRing.strokeEnd = 0
+        let grow = CABasicAnimation(keyPath: "strokeEnd")
+        grow.fromValue = 0
+        grow.toValue = 1
+        grow.duration = Self.holdDelay
+        grow.timingFunction = CAMediaTimingFunction(name: .linear)
+        holdRing.strokeEnd = 1
+        holdRing.add(grow, forKey: "hold")
+    }
+
+    private func stopHoldRing() {
+        holdRing.removeAllAnimations()
+        holdRing.strokeEnd = 0
+        holdRing.isHidden = true
+    }
+
     override func mouseDown(with event: NSEvent) {
         startMouse = NSEvent.mouseLocation
         startOrigin = window?.frame.origin ?? .zero
@@ -659,6 +713,7 @@ final class FloatingBarView: NSView {
         // 一碰就恢复不透明，并在松手后再重新计时
         setDimmed(false)
         fadeTimer?.invalidate()
+        startHoldRing()
         // 按住不动一会儿：跳出收藏的快捷切换
         let timer = Timer(timeInterval: Self.holdDelay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -679,6 +734,7 @@ final class FloatingBarView: NSView {
             moved = true
             holdTimer?.invalidate()
             holdTimer = nil
+            stopHoldRing()   // 是在拖，不是在长按
         }
         guard moved else { return }
         window.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
@@ -687,6 +743,7 @@ final class FloatingBarView: NSView {
     override func mouseUp(with event: NSEvent) {
         holdTimer?.invalidate()
         holdTimer = nil
+        stopHoldRing()
         isDragging = false
         restFade()
         guard let window else { return }
