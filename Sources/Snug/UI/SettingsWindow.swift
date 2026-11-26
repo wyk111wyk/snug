@@ -280,9 +280,12 @@ struct TouchPage: View {
                     SettingLabel("截图", detail: "小横条左侧的相机键 · 截当前窗口到剪贴板", tile: MacTokens.IconTile.screenshot)
                 }
             } footer: {
-                Text("只作用于手机和平板屏。电脑屏不翻译手势、不放大字号。")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: MacTokens.Space.xs) {
+                    Text("只作用于手机和平板屏。电脑屏不翻译手势、不放大字号。")
+                    Text("底部被 UU远程 的工具栏挡住时，到「屏幕」页里那块屏的 ⓘ 详情，把「屏幕控件」换成悬浮按钮。")
+                }
+                .font(.callout).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .formStyle(.grouped)

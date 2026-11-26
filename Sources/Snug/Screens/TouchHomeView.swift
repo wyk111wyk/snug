@@ -92,6 +92,9 @@ struct TouchHomeView: View {
     private var config: ScreenConfig? { state.screen(screen) }
 
     var body: some View {
+        // GeometryReader 的内容在布局阶段才求值，不算进这次 body 的观察范围：在这儿先读一把配置，
+        // 配置变了（收藏、取消主屏、换型号）这块屏才跟着重画
+        let _ = state.config
         GeometryReader { geo in
             ZStack {
                 switch pages.page {
