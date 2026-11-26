@@ -335,6 +335,12 @@ figure.frame figcaption b { display: block; color: var(--board-ink); font: var(-
   border-radius: var(--touch-radius-control); padding: var(--touch-space-xs) var(--touch-space-s);
   box-shadow: 0 0 0 0.5px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.16); }
 
+/* 长按悬浮按钮跳出的收藏快捷切换：一排图标，点一个切过去 */
+.t-fav { position: absolute; left: 63%; top: 26%; transform: translateX(-50%); display: flex; gap: var(--touch-space-xs);
+  padding: var(--touch-space-s); background: var(--touch-card); border-radius: var(--touch-radius-card); z-index: 4; }
+.t-fav .fi { width: 72px; display: flex; flex-direction: column; align-items: center; gap: var(--touch-space-xs); font: var(--touch-font-caption); color: var(--touch-label); }
+.t-fav .fi img { width: var(--touch-size-list-icon); height: var(--touch-size-list-icon); }
+
 /* 横屏、平板：左边 App 列表，右边选中 App 的窗口 */
 .split { display: flex; height: 100%; }
 .split .side { width: var(--touch-layout-phone-landscape-sidebar); padding: var(--touch-space-l) var(--touch-space-l) 0 var(--touch-space-margin); display: flex; flex-direction: column; gap: var(--touch-space-m); border-right: 1px solid var(--touch-separator); }

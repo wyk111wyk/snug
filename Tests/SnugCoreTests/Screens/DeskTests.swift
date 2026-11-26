@@ -849,4 +849,19 @@ struct DeskTests {
         await rig.ready()
         #expect(screens == [.preparing, .ready(101)])
     }
+
+    @Test("底部控件是横条、悬浮按钮还是两者，窗口都让出底部那一条：切控件不改变窗口的高度")
+    func barStyleKeepsPlacementArea() async throws {
+        for style in TouchBarStyle.allCases {
+            let rig = try Rig()
+            await rig.ready()
+            var wish = rig.desk.wish
+            wish.behavior = .touch(style)
+            rig.set.setWishes([wish])
+            await rig.set.idle()
+            await rig.pull(ghostty)
+            let area = try #require(rig.displays.windowArea(101, withHomeBar: true))
+            #expect(rig.windows.window(ghostty.key)?.frame == area, "\(style)")
+        }
+    }
 }

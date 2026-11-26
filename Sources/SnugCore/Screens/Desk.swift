@@ -96,8 +96,9 @@ public final class Desk {
         get { state.behavior }
         set { state.behavior = newValue }
     }
-    /// 放窗口时底部是否让出小横条那一条：只有带底部横条的触屏才让；只有悬浮按钮时浮在窗口上，不让
-    private var reservesHomeBar: Bool { behavior.touch && behavior.bar.docks }
+    /// 放窗口时底部是否让出小横条那一条：触屏屏一直让。底部控件是横条、悬浮按钮还是两者，
+    /// 只决定那一条上画什么；窗口的可放区域高度不随之变（不然切一次控件，窗口就长高/变矮一次）
+    private var reservesHomeBar: Bool { behavior.touch }
     private(set) var state = State() {
         didSet { if state != oldValue { onChange?() } }
     }

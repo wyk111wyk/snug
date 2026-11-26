@@ -59,6 +59,12 @@ final class ScreenWindows {
     private var dockView: HomeBarView?
     private var floatBar: TouchPanel?
     private var floatView: FloatingBarView?
+    /// 长按悬浮按钮跳出的收藏应用快捷切换（浮在按钮上方）
+    private var favorites: TouchPanel?
+    private var favoritesTimer: Timer?
+    /// 快捷切换里最多放几个收藏的 App，浮着多久自己收起
+    static let favoritesLimit = 6
+    static let favoritesDuration: TimeInterval = 6
     /// 截图后浮在小横条上方的那一块（缩略图或提示），和它此刻显示的是什么
     private var overlay: TouchPanel?
     private var overlayShown: OverlayShown?
@@ -129,12 +135,15 @@ final class ScreenWindows {
         let scale = ScreenFit.scale(screen: screen.frame.size)
         dockBar?.setFrame(dockBarFrame(on: screen), display: true)
         dockView?.scale = scale
-        dockView?.showsCamera = state.config.screenshot
+        // 有横条时它才画箭头、才放相机键；只有悬浮按钮时这一条只铺底色，不画箭头
+        dockView?.showsGrabber = panel.behavior.bar.docks
+        dockView?.showsCamera = state.config.screenshot && panel.behavior.bar.docks
         if let frame = floatingBarFrame(on: screen) {
             // 悬浮按钮正在被拖：别在当前这拍把它拽回记下的位置（松手时自己会记新的）
             if floatView?.isDragging != true { floatBar?.setFrame(frame, display: true) }
             floatView?.scale = scale
-            floatView?.showsCamera = state.config.screenshot
+            // 有横条时相机键在横条上，悬浮按钮不重复放一个
+            floatView?.showsCamera = state.config.screenshot && !panel.behavior.bar.docks
         }
 
         let showList = panel.listVisible || panel.placed == nil
@@ -167,6 +176,7 @@ final class ScreenWindows {
         } else {
             dockBar?.orderOut(nil)
             floatBar?.orderOut(nil)
+            hideFavorites()
         }
         barsShown = barsVisible
         updateOverlay(on: screen, hidden: showList)
@@ -233,10 +243,10 @@ final class ScreenWindows {
     /// 这块屏此刻该用哪种底部控件（按行为走）
     private var panelBehavior: ScreenBehavior { state.desks.desks[id]?.behavior ?? .touchScreen }
 
-    /// 建底部控件：按样式建横条和 / 或悬浮按钮
+    /// 建底部控件：底部那一条一直在（窗口高度不随之变），没有横条时只铺底色、不画箭头；要悬浮按钮再建一个
     private func buildBars(_ kind: TouchBarStyle) {
         barKind = kind
-        if kind.docks { buildDock() }
+        buildDock()
         if kind.floats { buildFloat() }
     }
 
@@ -253,6 +263,7 @@ final class ScreenWindows {
         view.onActivate = { [weak self] in self?.intents.showList() }
         view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
         view.onMoved = { [weak self] frame in self?.commitAnchor(frame) }
+        view.onLongPress = { [weak self] in self?.showFavorites() }
         floatView = view
         // 悬浮按钮是个圆，面板透明（背景由按钮自己画）
         floatBar = TouchPanel(content: view, opaque: false)
@@ -261,6 +272,7 @@ final class ScreenWindows {
     /// 换了底部控件：拆掉旧的两块面板，按新样式重建（资源库面板不动）
     private func rebuildBars(_ kind: TouchBarStyle, on display: DisplayID) {
         Log.info("屏（\(self.id)）的底部控件换成\(kind.title)")
+        hideFavorites()
         dockBar?.orderOut(nil)
         floatBar?.orderOut(nil)
         floatView?.stopIdleCountdown()
@@ -282,6 +294,7 @@ final class ScreenWindows {
         dockBar?.orderOut(nil)
         floatBar?.orderOut(nil)
         floatView?.stopIdleCountdown()
+        hideFavorites()
         overlay?.orderOut(nil)
         cropPanel?.orderOut(nil)
         list = nil
@@ -324,6 +337,52 @@ final class ScreenWindows {
         let clamped = ScreenFit.floatingBarFrame(in: area, anchor: anchor, showsCamera: state.config.screenshot)
         floatBar?.setFrame(Screens.appKitRect(fromAX: clamped), display: true)
         intents.setFloatingAnchor(anchor)
+    }
+
+    // MARK: 收藏的快捷切换（长按悬浮按钮）
+
+    /// 长按悬浮按钮：把收藏的几个 App 浮在按钮上方，点一个就切到它（放上这块屏）。没有收藏时什么都不弹
+    private func showFavorites() {
+        guard let display, let screen = Screens.screen(for: display) else { return }
+        let apps = catalog.installed.filter { state.config.favorites.contains($0.app.bundleID) }
+            .prefix(Self.favoritesLimit).map(\.app)
+        guard !apps.isEmpty else { return }
+        hideFavorites()
+        let host = FirstMouseHostingView(rootView: FavoriteSwitcher(
+            apps: Array(apps),
+            icon: { [weak self] in self?.catalog.icon(for: $0) ?? NSImage() },
+            pick: { [weak self] in self?.pickFavorite($0) }))
+        let size = host.fittingSize
+        let scale = ScreenFit.scale(screen: screen.frame.size)
+        let visible = screen.visibleFrame
+        let anchor = overlayAnchorFrame(on: screen)
+        let margin = 8 * scale
+        var origin = CGPoint(x: anchor.midX - size.width / 2, y: anchor.maxY + margin)
+        // 夹在屏内，别跑出去
+        origin.x = min(max(origin.x, visible.minX + margin), max(visible.minX + margin, visible.maxX - margin - size.width))
+        origin.y = min(max(origin.y, visible.minY + margin), max(visible.minY + margin, visible.maxY - margin - size.height))
+        let panel = TouchPanel(content: host, opaque: false)
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        panel.orderFrontRegardless()
+        favorites = panel
+        // 一会儿不点就自己收起
+        let timer = Timer(timeInterval: Self.favoritesDuration, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hideFavorites() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        favoritesTimer = timer
+    }
+
+    private func pickFavorite(_ app: AppInfo) {
+        hideFavorites()
+        intents.open(app)
+    }
+
+    private func hideFavorites() {
+        favoritesTimer?.invalidate()
+        favoritesTimer = nil
+        favorites?.orderOut(nil)
+        favorites = nil
     }
 
     /// 浮层上显示的截图结果和当时的倍率：换了才重建视图
@@ -383,6 +442,10 @@ final class HomeBarView: NSView {
     /// 设置里开着「截图」
     var showsCamera = false {
         didSet { camera.isHidden = !showsCamera }
+    }
+    /// 画不画返回箭头：是底部横条时画；只有悬浮按钮时这一条只铺底色、不画箭头
+    var showsGrabber = true {
+        didSet { grabber.isHidden = !showsGrabber }
     }
     private let grabber = NSImageView()
     private let camera = NSImageView()
@@ -463,12 +526,16 @@ final class HomeBarView: NSView {
 final class FloatingBarView: NSView {
     /// 基准宽度下挪过这么多点算拖动，没到算点一下
     static let dragThreshold: CGFloat = 8
+    /// 按住不动这么久算长按（跳出收藏的快捷切换）
+    static let holdDelay: TimeInterval = 0.5
     /// 一段时间没碰就淡到这个透明度，好看清下面的内容；一碰就恢复
     static let idleAlpha: CGFloat = 0.3
     static let idleDelay: TimeInterval = 4
 
     var onActivate: (() -> Void)?
     var onCapture: (() -> Void)?
+    /// 长按：跳出收藏的应用快捷切换
+    var onLongPress: (() -> Void)?
     /// 拖完了：交回控件所在的窗口外框（AppKit 坐标），由 ScreenWindows 换算成归一化位置存起来
     var onMoved: ((NSRect) -> Void)?
     /// 这一档比基准宽度宽几倍（ScreenFit.scale）
@@ -494,6 +561,9 @@ final class FloatingBarView: NSView {
     private(set) var isDragging = false
     /// 空闲变淡的计时器
     private var fadeTimer: Timer?
+    /// 长按计时器；longPressed 记着这次按下已经当长按处理过了
+    private var holdTimer: Timer?
+    private var longPressed = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -584,27 +654,49 @@ final class FloatingBarView: NSView {
         startMouse = NSEvent.mouseLocation
         startOrigin = window?.frame.origin ?? .zero
         moved = false
+        longPressed = false
         isDragging = true
-        // 一碰就恢复，并在松手后再重新计时
+        // 一碰就恢复不透明，并在松手后再重新计时
         setDimmed(false)
         fadeTimer?.invalidate()
+        // 按住不动一会儿：跳出收藏的快捷切换
+        let timer = Timer(timeInterval: Self.holdDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isDragging, !self.moved else { return }
+                self.longPressed = true
+                self.onLongPress?()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        holdTimer = timer
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard let window else { return }
         let now = NSEvent.mouseLocation
         let dx = now.x - startMouse.x, dy = now.y - startMouse.y
-        if !moved, hypot(dx, dy) >= Self.dragThreshold * scale { moved = true }
+        if !moved, hypot(dx, dy) >= Self.dragThreshold * scale {
+            moved = true
+            holdTimer?.invalidate()
+            holdTimer = nil
+        }
         guard moved else { return }
         window.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
     }
 
     override func mouseUp(with event: NSEvent) {
+        holdTimer?.invalidate()
+        holdTimer = nil
         isDragging = false
         restFade()
         guard let window else { return }
         if moved {
             onMoved?(window.frame)
+            return
+        }
+        // 已经当过长按了：这次抬起不再当点一下
+        if longPressed {
+            longPressed = false
             return
         }
         let point = convert(event.locationInWindow, from: nil)

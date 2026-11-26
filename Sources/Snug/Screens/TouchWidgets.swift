@@ -2,6 +2,7 @@
 // 一组行的卡片、搜索框和它的清除键、导航栏右边的文字按钮、输入框底、卡片底。
 // 尺寸、颜色取自设计令牌 TouchTokens
 import AppKit
+import SnugCore
 import SwiftUI
 
 struct AppIcon: View {
@@ -221,5 +222,37 @@ extension View {
     func fieldBackground() -> some View {
         frame(height: 48)
             .background(TouchTokens.Color.fill, in: RoundedRectangle(cornerRadius: TouchTokens.Radius.card, style: .continuous))
+    }
+}
+
+/// 长按悬浮按钮跳出的收藏应用快捷切换：一排图标 + 名字，点一个就用那块屏打开它
+struct FavoriteSwitcher: View {
+    let apps: [AppInfo]
+    let icon: (AppInfo) -> NSImage
+    let pick: (AppInfo) -> Void
+
+    private static let itemWidth: CGFloat = 72
+
+    var body: some View {
+        HStack(spacing: TouchTokens.Space.xs) {
+            ForEach(apps) { app in
+                Button { pick(app) } label: {
+                    VStack(spacing: TouchTokens.Space.xs) {
+                        AppIcon(image: icon(app), size: TouchTokens.Size.listIcon)
+                        Text(app.name)
+                            .font(TouchTokens.Font.caption.font)
+                            .lineLimit(1)
+                            .frame(width: Self.itemWidth)
+                    }
+                    .frame(width: Self.itemWidth)
+                    .padding(.vertical, TouchTokens.Space.xs)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel(app.name)
+            }
+        }
+        .padding(TouchTokens.Space.s)
+        .background(TouchTokens.Color.card, in: RoundedRectangle(cornerRadius: TouchTokens.Radius.card, style: .continuous))
     }
 }
