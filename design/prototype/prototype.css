@@ -335,11 +335,16 @@ figure.frame figcaption b { display: block; color: var(--board-ink); font: var(-
   border-radius: var(--touch-radius-control); padding: var(--touch-space-xs) var(--touch-space-s);
   box-shadow: 0 0 0 0.5px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.16); }
 
-/* 长按悬浮按钮跳出的收藏快捷切换：一排图标，点一个切过去 */
-.t-fav { position: absolute; left: 63%; top: 26%; transform: translateX(-50%); display: flex; gap: var(--touch-space-xs);
-  padding: var(--touch-space-s); background: var(--touch-card); border-radius: var(--touch-radius-card); z-index: 4; }
-.t-fav .fi { width: 72px; display: flex; flex-direction: column; align-items: center; gap: var(--touch-space-xs); font: var(--touch-font-caption); color: var(--touch-label); }
-.t-fav .fi img { width: var(--touch-size-list-icon); height: var(--touch-size-list-icon); }
+/* 长按悬浮按钮跳出的收藏快捷切换：一列紧凑的行（小图标 + App 名 + 当前窗口名），右上角 ✕ */
+.t-fav { position: absolute; left: 63%; top: 116px; transform: translateX(-50%); width: 300px;
+  background: var(--touch-card); border-radius: var(--touch-radius-card); overflow: hidden; z-index: 4; }
+.t-fav .fh { display: flex; align-items: center; justify-content: space-between; padding: var(--touch-space-xs) var(--touch-space-m) var(--touch-space-xs) var(--touch-space-m);
+  font: var(--touch-font-caption); color: var(--touch-secondary-label); }
+.t-fav .fh .sym { font-size: 20px; color: var(--touch-secondary-label); }
+.t-fav .fr { display: flex; align-items: center; gap: var(--touch-space-m); padding: 0 var(--touch-space-m); height: 52px; border-top: 1px solid var(--touch-separator); }
+.t-fav .fr img { width: 32px; height: 32px; }
+.t-fav .fr b { display: block; font: var(--touch-font-label); }
+.t-fav .fr small { display: block; font: var(--touch-font-caption); color: var(--touch-secondary-label); }
 
 /* 横屏、平板：左边 App 列表，右边选中 App 的窗口 */
 .split { display: flex; height: 100%; }

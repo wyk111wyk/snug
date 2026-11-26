@@ -225,56 +225,95 @@ extension View {
     }
 }
 
-/// 长按悬浮按钮跳出的收藏应用快捷切换：一排图标 + 名字，点一个就用那块屏打开它。
-/// 冒出来的动效：每个图标从按钮那一侧（下方）依次弹起、放大、淡入，像从按钮里冒出来。
-/// 点了以后不立刻消失：选中的那个转圈、其余变淡，等 ScreenWindows 确认切换完成再收起
+/// 长按悬浮按钮跳出的收藏应用快捷切换：像主界面「运行中」那样，一行一个 App（小图标 + App 名 + 当前活跃窗口名），
+/// 但更紧凑。点一行就用那块屏打开它；右上角 ✕ 关闭（点背景也关，见 ScreenWindows）。
+/// 冒出来的动效：一行行从按钮那一侧（下方）依次弹起、放大、淡入。点了以后不立刻消失：
+/// 选中的那行转圈、其余变淡，等 ScreenWindows 确认切换完成再收起
 struct FavoriteSwitcher: View {
-    let apps: [AppInfo]
+    /// 一行：一个收藏的 App，和它此刻的活跃窗口（没在跑 / 没窗口时给一句话）
+    struct Row: Identifiable, Hashable {
+        let app: AppInfo
+        let window: String
+        var id: String { app.bundleID }
+    }
+
+    let rows: [Row]
     let icon: (AppInfo) -> NSImage
     let pick: (AppInfo) -> Void
+    let close: () -> Void
 
     @State private var appeared = false
-    @State private var picked: AppInfo?
-    private static let itemWidth: CGFloat = 72
+    @State private var picked: String?
+
+    private static let width: CGFloat = 320
+    private static let iconSize: CGFloat = 32
 
     var body: some View {
-        HStack(spacing: TouchTokens.Space.xs) {
-            ForEach(Array(apps.enumerated()), id: \.element) { index, app in
-                let choosing = picked?.bundleID == app.bundleID
-                Button {
-                    picked = app
-                    pick(app)
-                } label: {
-                    VStack(spacing: TouchTokens.Space.xs) {
-                        if choosing {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(width: TouchTokens.Size.listIcon, height: TouchTokens.Size.listIcon)
-                        } else {
-                            AppIcon(image: icon(app), size: TouchTokens.Size.listIcon)
-                        }
-                        Text(app.name)
-                            .font(TouchTokens.Font.caption.font)
-                            .lineLimit(1)
-                            .frame(width: Self.itemWidth)
-                    }
-                    .frame(width: Self.itemWidth)
-                    .padding(.vertical, TouchTokens.Space.xs)
-                    .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: TouchTokens.Space.s) {
+                Text("切换 App").font(TouchTokens.Font.caption.font).foregroundStyle(.secondary)
+                Spacer(minLength: TouchTokens.Space.s)
+                Button(action: close) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(TouchTokens.Font.headline.font)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 36, height: 36, alignment: .center)
                 }
                 .buttonStyle(PressableStyle())
-                .accessibilityLabel(app.name)
-                .opacity(picked == nil || choosing ? 1 : 0.4)
-                .scaleEffect(appeared ? 1 : 0.3, anchor: .bottom)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 18)
-                .animation(.spring(response: 0.32, dampingFraction: 0.7).delay(0.03 * Double(index)), value: appeared)
+                .accessibilityLabel("关闭")
+            }
+            .padding(.leading, TouchTokens.Space.m)
+            .padding(.trailing, TouchTokens.Space.xs)
+            .padding(.top, TouchTokens.Space.xs)
+
+            ForEach(Array(rows.enumerated()), id: \.element) { index, row in
+                if index > 0 { Divider().padding(.leading, TouchTokens.Space.m) }
+                rowView(row, index: index)
             }
         }
-        .padding(TouchTokens.Space.s)
+        .frame(width: Self.width, alignment: .leading)
         .background(TouchTokens.Color.card, in: RoundedRectangle(cornerRadius: TouchTokens.Radius.card, style: .continuous))
         .opacity(appeared ? 1 : 0)
         .animation(.easeOut(duration: MotionTokens.fast), value: appeared)
         .onAppear { appeared = true }
     }
+
+    private func rowView(_ row: Row, index: Int) -> some View {
+        let choosing = picked == row.id
+        return Button {
+            picked = row.id
+            pick(row.app)
+        } label: {
+            HStack(spacing: TouchTokens.Space.m) {
+                if choosing {
+                    ProgressView().controlSize(.small).frame(width: Self.iconSize, height: Self.iconSize)
+                } else {
+                    AppIcon(image: icon(row.app), size: Self.iconSize)
+                }
+                VStack(alignment: .leading, spacing: TouchTokens.Space.xxs) {
+                    Text(row.app.name).font(TouchTokens.Font.label.font).lineLimit(1)
+                    Text(row.window).font(TouchTokens.Font.caption.font).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, TouchTokens.Space.m)
+            .frame(height: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(row.app.name)
+        .opacity(picked == nil || choosing ? 1 : 0.4)
+        .scaleEffect(appeared ? 1 : 0.4, anchor: .bottom)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 16)
+        .animation(.spring(response: 0.32, dampingFraction: 0.7).delay(0.03 * Double(index)), value: appeared)
+    }
+}
+
+/// 收藏快捷切换背后的一层：点它（列表之外的地方）就关掉。不抢焦点、不画东西
+final class DismissView: NSView {
+    var onTap: (() -> Void)?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseUp(with event: NSEvent) { onTap?() }
 }

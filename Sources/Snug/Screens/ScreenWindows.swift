@@ -60,15 +60,15 @@ final class ScreenWindows {
     private var dockView: HomeBarView?
     private var floatBar: TouchPanel?
     private var floatView: FloatingBarView?
-    /// 长按悬浮按钮跳出的收藏应用快捷切换（浮在按钮上方）
+    /// 长按悬浮按钮跳出的收藏应用快捷切换（浮在按钮上方）+ 它背后那层「点一下就关」的背景
     private var favorites: TouchPanel?
+    private var favoritesScrim: TouchPanel?
     private var favoritesTimer: Timer?
     /// 已经点了、正在切过去的 App：等这块屏忙完再收起收藏条（点完立刻转圈，不是干等）
     private var pendingFavorite: AppInfo?
     private var favoriteWasWorking = false
-    /// 快捷切换里最多放几个收藏的 App；浮着多久自己收起；点了以后最多等多久（切换本身要几秒）
+    /// 快捷切换里最多列几个收藏的 App；点了以后最多等多久（切换本身要几秒）。不点不会自己关
     static let favoritesLimit = 6
-    static let favoritesDuration: TimeInterval = 6
     static let favoritesSwitchTimeout: TimeInterval = 15
     /// 截图后浮在小横条上方的那一块（缩略图或提示），和它此刻显示的是什么
     private var overlay: TouchPanel?
@@ -270,7 +270,11 @@ final class ScreenWindows {
 
     private func buildFloat() {
         let view = FloatingBarView()
-        view.onActivate = { [weak self] in self?.intents.showList() }
+        // 切换条开着时点按钮：先收切换条，再回主页
+        view.onActivate = { [weak self] in
+            self?.hideFavorites()
+            self?.intents.showList()
+        }
         view.onCapture = { [weak self] in self?.intents.takeScreenshot() }
         view.onMoved = { [weak self] frame in self?.commitAnchor(frame) }
         view.onLongPress = { [weak self] in self?.showFavorites() }
@@ -351,40 +355,57 @@ final class ScreenWindows {
 
     // MARK: 收藏的快捷切换（长按悬浮按钮）
 
-    /// 长按悬浮按钮：把收藏的几个 App 浮在按钮上方，点一个就切到它（放上这块屏）。没有收藏时什么都不弹
+    /// 长按悬浮按钮：把收藏的几个 App（带当前活跃窗口名）浮在按钮上方，点一个就切到它。没有收藏时什么都不弹。
+    /// 不点不会自己关：右上角 ✕ 关，点列表外的背景也关
     private func showFavorites() {
         guard let display, let screen = Screens.screen(for: display) else { return }
-        let apps = catalog.installed.filter { state.config.favorites.contains($0.app.bundleID) }
-            .prefix(Self.favoritesLimit).map(\.app)
-        guard !apps.isEmpty else { return }
+        let rows = favoriteRows()
+        guard !rows.isEmpty else { return }
         hideFavorites()
-        let host = FirstMouseHostingView(rootView: FavoriteSwitcher(
-            apps: Array(apps),
-            icon: { [weak self] in self?.catalog.icon(for: $0) ?? NSImage() },
-            pick: { [weak self] in self?.pickFavorite($0) }))
-        let size = host.fittingSize
         let scale = ScreenFit.scale(screen: screen.frame.size)
+        // 背后那层：点它就关
+        let dismiss = DismissView()
+        dismiss.onTap = { [weak self] in self?.hideFavorites() }
+        let scrim = TouchPanel(content: dismiss, opaque: false)
+        scrim.setFrame(screen.frame, display: true)
+        scrim.orderFrontRegardless()
+        // 列表卡片
+        let host = FirstMouseHostingView(rootView: FavoriteSwitcher(
+            rows: rows,
+            icon: { [weak self] in self?.catalog.icon(for: $0) ?? NSImage() },
+            pick: { [weak self] in self?.pickFavorite($0) },
+            close: { [weak self] in self?.hideFavorites() }))
+        let size = host.fittingSize
         let visible = screen.visibleFrame
         let anchor = overlayAnchorFrame(on: screen)
         let margin = 8 * scale
         var origin = CGPoint(x: anchor.midX - size.width / 2, y: anchor.maxY + margin)
-        // 夹在屏内，别跑出去
         origin.x = min(max(origin.x, visible.minX + margin), max(visible.minX + margin, visible.maxX - margin - size.width))
+        // 上面放不下就放到按钮下方；两边都放不下就夹回屏内
+        if origin.y + size.height > visible.maxY - margin { origin.y = anchor.minY - margin - size.height }
         origin.y = min(max(origin.y, visible.minY + margin), max(visible.minY + margin, visible.maxY - margin - size.height))
         let panel = TouchPanel(content: host, opaque: false)
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
         panel.orderFrontRegardless()
         favorites = panel
-        // 一会儿不点就自己收起
-        let timer = Timer(timeInterval: Self.favoritesDuration, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated { self?.hideFavorites() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        favoritesTimer = timer
+        favoritesScrim = scrim
+        // 悬浮按钮留在最上面：切换条在时，点它仍然能回主页
+        floatBar?.orderFrontRegardless()
+    }
+
+    /// 收藏的 App（按名字）和它此刻的活跃窗口名
+    private func favoriteRows() -> [FavoriteSwitcher.Row] {
+        catalog.installed.filter { state.config.favorites.contains($0.app.bundleID) }
+            .prefix(Self.favoritesLimit)
+            .map { item in
+                let running = catalog.running(item.app)
+                let window = running?.windows.first?.displayTitle
+                return FavoriteSwitcher.Row(app: item.app, window: window ?? (running == nil ? "未运行" : "无窗口"))
+            }
     }
 
     private func pickFavorite(_ app: AppInfo) {
-        // 不马上收起：收藏条留着，选中的那个转圈，等这块屏做完再收（见 update）
+        // 不马上收起：选中的那行转圈，等这块屏做完再收（见 update）
         pendingFavorite = app
         favoriteWasWorking = false
         favoritesTimer?.invalidate()
@@ -399,6 +420,8 @@ final class ScreenWindows {
     private func hideFavorites() {
         favoritesTimer?.invalidate()
         favoritesTimer = nil
+        favoritesScrim?.orderOut(nil)
+        favoritesScrim = nil
         favorites?.orderOut(nil)
         favorites = nil
         pendingFavorite = nil
