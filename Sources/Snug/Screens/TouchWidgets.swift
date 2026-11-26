@@ -305,7 +305,6 @@ struct FavoriteSwitcher: View {
             }
             .padding(.horizontal, TouchTokens.Space.m)
             .frame(height: 52)
-            .background(row.active ? TouchTokens.Color.tintFill : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
