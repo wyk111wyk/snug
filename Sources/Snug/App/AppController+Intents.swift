@@ -139,9 +139,9 @@ extension AppController: AppIntents {
 
     func markWelcomed() { changeConfig("看过欢迎页") { $0.welcomed = true } }
 
-    /// 记下这次运行的版本，交回是不是刚换了版本（应用内更新或手动替换）。第一次记的不算
+    /// 记下这次运行的版本，交回是不是刚换了版本（手动替换或自编译装上）。第一次记的不算
     func recordVersion() -> Bool {
-        guard let current = Updater.current, state.config.lastVersion != current else { return false }
+        guard let current = AppVersion.current, state.config.lastVersion != current else { return false }
         let previous = state.config.lastVersion
         changeConfig("运行版本 → \(current)") { $0.lastVersion = current }
         return previous != nil
@@ -150,18 +150,6 @@ extension AppController: AppIntents {
     func quitLegacyApp() { LegacyApp.quit() }
 
     func quit() { onQuitRequested?() }
-
-    func checkForUpdates() { updater.check(userInitiated: true) }
-
-    func installUpdate() { updater.install() }
-
-    /// 换了更新源，上一个源连不上之类的提示就不作数了
-    func setUpdateSource(_ source: UpdateSource) {
-        guard changeConfig("更新源 → \(source.title)", { $0.updateSource = source }) else { return }
-        state.update.problem = nil
-    }
-
-    func openDownloadPage() { NSWorkspace.shared.open(state.config.updateSource.downloadPage) }
 
     // MARK: 退出收尾
 
@@ -239,6 +227,7 @@ final class ScreenIntents: TouchIntents {
     func putBack(_ window: WindowKey) { desks.putBack(window, on: id) }
     func zoom(by delta: Int) { desks.zoom(by: delta, on: id) }
     func setDevice(_ device: DeviceChoice) { app.setScreenDevice(id, device) }
+    func setTouchBar(_ bar: TouchBarStyle) { app.setScreenTouchBar(id, bar) }
     func setFavorite(_ bundleID: String, _ on: Bool) { app.setFavorite(bundleID, on) }
     func setFloatingAnchor(_ anchor: CGPoint) { app.setFloatingAnchor(anchor, on: id) }
     func dismissScreen() { desks.dismissScreen(id) }

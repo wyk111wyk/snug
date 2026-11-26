@@ -27,14 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         launchedAtLogin = Self.launchedAsLoginItem
-        Log.info("启动 Snug \(Updater.current?.description ?? "开发版")（\(launchedAtLogin ? "开机自启" : "手动打开")），"
+        Log.info("启动 Snug \(AppVersion.text)（\(launchedAtLogin ? "开机自启" : "手动打开")），"
             + "辅助功能权限：\(controller.state.accessibilityTrusted ? "已授权" : "未授权")")
         statusBar = StatusBarController(state: controller.state, intents: controller, navigation: router)
         let controller = controller
         panels = ScreenPanels(state: controller.state, catalog: controller.catalog) { ScreenIntents(id: $0, app: controller) }
         handleSIGTERM()
-        controller.updater.onNewVersion = { [weak self] userInitiated in self?.router.showUpdate(activating: userInitiated) }
-        controller.updater.onInstalled = { [weak self] in self?.quitFlow.userQuit() }
         legacyObservers = LegacyApp.observe { [weak self] running in
             self?.controller.state.legacyAppRunning = running
             if !running { self?.router.legacyAppGone() }
@@ -87,10 +85,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startMonitoring() {
         controller.start()
         controller.refreshLaunchAtLogin()
-        // 默认不自动检查更新（自用 fork 不跟上游版本走）；要跟的话把 config.json 里的 autoUpdate 改成 true
-        if controller.state.config.autoUpdate {
-            controller.updater.check(userInitiated: false, waitForNetwork: launchedAtLogin)
-        }
         let updated = controller.recordVersion()
         if !controller.state.config.welcomed {
             if !controller.state.launchAtLogin { controller.setLaunchAtLogin(true) }

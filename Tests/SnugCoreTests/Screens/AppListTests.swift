@@ -142,4 +142,16 @@ struct AppListTests {
         #expect(none.isEmpty)
         #expect(all.map(\.app.name) == list.map(\.app.name))
     }
+
+    @Test("在跑的 App 也按收藏置顶：收藏的挑前面，各自保持最近用过的顺序；没有收藏时原样")
+    func splitRunningFavorites() {
+        // 最近用过的顺序：2、1、3（pid）
+        let apps = [running(2, []), running(1, []), running(3, [])]
+        let (pinned, rest) = AppList.splitFavorites(apps, favorites: ["b.3", "b.1"])
+        #expect(pinned.map(\.pid) == [1, 3])
+        #expect(rest.map(\.pid) == [2])
+        let (none, all) = AppList.splitFavorites(apps, favorites: [])
+        #expect(none.isEmpty)
+        #expect(all.map(\.pid) == [2, 1, 3])
+    }
 }

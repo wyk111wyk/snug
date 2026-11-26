@@ -65,12 +65,14 @@
 
 ## 应用内更新
 
+> 本 fork 的 App 已移除在线更新（不再检查、下载、自替换）。下面这套包格式只由发布侧保留：`dist` 打包、`ship` 写 `update.json`。要用它的下游可以照这套格式接回客户端。
+
 每个版本只多发布两个文件，GitHub Release 与国内源各一份，内容相同：
 
 - `Snug-<版本>.pack`：将 App 按内容切块（FastCDC，平均 128 KiB），去重后逐块 LZMA 压缩，首尾相接
 - `update.json`：版本号、2.1.0 以来各版本的更新日志，以及清单（每块在包中的位置、每个文件由哪几块组成）
 
-App 将本机已安装的 Snug 按同样方式切块，只按字节范围从最新的包中读取本机缺少的块，因此从任何旧版本都能直接升到最新版，无需逐版本的补丁。格式与打包逻辑位于 `SnugCore/Update`，发布工具 `snug-release`（`Sources/SnugRelease`）与 App 共用同一份实现：`dist` 时打包，并照清单拼装、核对签名，通过后才交出；`ship` 时生成 `update.json`。
+格式与打包逻辑位于 `SnugCore/Update`，发布工具 `snug-release`（`Sources/SnugRelease`）按它打包与写清单：`dist` 时打包，`ship` 时生成 `update.json`。
 
 ## 远控兼容自检
 
@@ -85,7 +87,7 @@ App 将本机已安装的 Snug 按同样方式切块，只按字节范围从最�
 | `SnugCore` | 纯逻辑：远控适配层的端口与连接判定、会话（`Remote/`）、屏幕调度（见下）、屏幕适配 `ScreenFit`、机型库 `DeviceCatalog`、手势翻译 `TouchTranslator`、截图 `Screenshots`、还原记录、配置、日志、启动参数、更新包格式。系统能力抽象为协议，测试中使用假实现 |
 | `SnugSystem` | 系统层：`CGVirtualDisplay` 建屏与撤屏、辅助进程切换分辨率档位、设主屏与还原排列 `DisplayArrangementService`、辅助功能接口移动窗口、按进程发送字号快捷键、手势事件监听 `TouchTap`、ScreenCaptureKit 截图 |
 | `RemoteUU`、`RemoteUUSystem` | UU远程 的适配器：纯逻辑一个目标、调系统一个目标（见「远控适配层」） |
-| `Snug` | 应用层：登记远控 `Remotes`、AppController、应用内更新 `Updater`、Snug 屏上的 App 资源库（`Screens/`）、指示条与截图裁剪、设置（屏幕、触控、通用三页）、添加屏幕与屏幕详情、关于、电脑屏的 App 资源库窗口、欢迎页、菜单栏 |
+| `Snug` | 应用层：登记远控 `Remotes`、AppController、Snug 屏上的 App 资源库（`Screens/`）、底部控件（横条 / 悬浮按钮）与截图裁剪、设置（屏幕、触控、通用三页）、添加屏幕与屏幕详情、关于、电脑屏的 App 资源库窗口、欢迎页、菜单栏 |
 
 发布工具 `SnugRelease` 只依赖 `SnugCore`，由 `scripts/snug` 调用。
 

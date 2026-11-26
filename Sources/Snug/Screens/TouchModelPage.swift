@@ -14,6 +14,7 @@ struct TouchModelPage: View {
     private var query: String { pages.trimmedQuery }
     private var current: DeviceChoice { state.screen(screen)?.device ?? .standard }
     private var orientation: Orientation { state.screen(screen)?.orientation ?? .portrait }
+    private var currentBar: TouchBarStyle { state.screen(screen)?.touchBar ?? .dock }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,6 +54,14 @@ struct TouchModelPage: View {
         LazyVStack(alignment: .leading, spacing: TouchTokens.Space.xxl) {
             if query.isEmpty {
                 TitledSection("当前 · 这块屏按它调整比例") { CurrentPhone(choice: current, orientation: orientation) }
+                TitledSection("屏幕控件") {
+                    VStack(spacing: 0) {
+                        barChoice(.dock)
+                        Divider().padding(.leading, TouchTokens.Space.margin)
+                        barChoice(.floating)
+                    }
+                    .card()
+                }
             }
             if brands.isEmpty {
                 if query.isEmpty {
@@ -80,6 +89,35 @@ struct TouchModelPage: View {
     private func choose(_ device: DeviceChoice) {
         pages.close()
         intents.setDevice(device)
+    }
+
+    /// 底部控件的一行：横条 / 悬浮按钮，选中的打勾（和上面的型号行同一套样子）
+    private func barChoice(_ bar: TouchBarStyle) -> some View {
+        let selected = currentBar == bar
+        return Button { intents.setTouchBar(bar) } label: {
+            HStack(spacing: TouchTokens.Space.m) {
+                VStack(alignment: .leading, spacing: TouchTokens.Space.xs) {
+                    Text(bar.title).font(TouchTokens.Font.body.font)
+                    Text(barDetail(bar)).font(TouchTokens.Font.label.font).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: TouchTokens.Space.s)
+                if selected {
+                    Image(systemName: "checkmark").font(TouchTokens.Font.body.font.weight(.semibold)).foregroundStyle(TouchTokens.Color.tint)
+                }
+            }
+            .padding(.horizontal, TouchTokens.Space.margin)
+            .frame(minHeight: TouchTokens.Size.touchTarget + 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func barDetail(_ bar: TouchBarStyle) -> String {
+        switch bar {
+        case .dock: "屏底一条横条，点它回 App 资源库"
+        case .floating: "浮在窗口上，可拖到任意位置；被 UU 工具栏挡住时用"
+        }
     }
 }
 

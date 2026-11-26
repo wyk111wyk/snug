@@ -78,10 +78,6 @@ final class RenderStub: AppIntents, TouchIntents, Navigation {
     func quitLegacyApp() {}
     func endSessionNow() {}
     func quit() {}
-    func checkForUpdates() {}
-    func installUpdate() {}
-    func setUpdateSource(_ source: UpdateSource) {}
-    func openDownloadPage() {}
     func setScreenshot(_ on: Bool) {}
     func pull(_ window: WindowInfo) {}
     func open(_ app: AppInfo) {}
@@ -96,6 +92,7 @@ final class RenderStub: AppIntents, TouchIntents, Navigation {
     func putBack(_ window: WindowKey) {}
     func zoom(by delta: Int) {}
     func setDevice(_ device: DeviceChoice) {}
+    func setTouchBar(_ bar: TouchBarStyle) {}
     func setFloatingAnchor(_ anchor: CGPoint) {}
     func dismissScreen() {}
     func cancelMain() {}
@@ -106,6 +103,5 @@ final class RenderStub: AppIntents, TouchIntents, Navigation {
     func openSettings(on display: DisplayID?) {}
     func openWelcome() {}
     func openAbout(on display: DisplayID?) {}
-    func openUpdate() {}
     func openLibrary(on display: DisplayID?) {}
 }

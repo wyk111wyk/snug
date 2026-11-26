@@ -54,8 +54,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(library)
         menu.addItem(.separator())
         let settings = action("设置…", #selector(openSettings), key: ",", symbol: "gearshape")
-        // 有新版本：系统的菜单角标，更新在设置的通用页里
-        if state.update.hasNewVersion { settings.badge = NSMenuItemBadge(string: "新版本") }
         menu.addItem(settings)
         menu.addItem(action("关于 Snug", #selector(openAbout), symbol: "info.circle"))
         menu.addItem(.separator())

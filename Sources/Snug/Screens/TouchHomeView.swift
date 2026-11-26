@@ -239,10 +239,15 @@ struct TouchHomeView: View {
                 EmptyState(symbol: nil, text: "正在读取")
             } else if others.isEmpty {
                 if panel.placed == nil { EmptyState(symbol: "square.grid.2x2", text: "没有正在运行的 App") }
-            } else if panel.placed != nil {
-                TitledSection("其他 App") { appCards(others) }
             } else {
-                appCards(others)
+                // 收藏的排到最上面；没有收藏时不分组，和以前一样
+                let (pinned, rest) = AppList.splitFavorites(others, favorites: state.config.favorites)
+                if pinned.isEmpty {
+                    if panel.placed != nil { TitledSection("其他 App") { appCards(others) } } else { appCards(others) }
+                } else {
+                    TitledSection("收藏") { appCards(pinned) }
+                    if !rest.isEmpty { TitledSection("其他 App") { appCards(rest) } }
+                }
             }
         }
     }
@@ -294,7 +299,7 @@ struct TouchHomeView: View {
             ScrollView {
                 LazyVStack(spacing: TouchTokens.Space.xs) {
                     switch tab {
-                    case .running: ForEach(catalog.running) { sideRow(running: $0) }
+                    case .running: runningRows
                     case .all: installedRows
                     }
                 }
@@ -310,6 +315,17 @@ struct TouchHomeView: View {
         }
         .padding(.horizontal, TouchTokens.Space.margin)
         .padding(.top, TouchTokens.Space.margin)
+    }
+
+    /// 「运行中」：收藏的排到最上面、单独一节，其余按最近用过
+    @ViewBuilder private var runningRows: some View {
+        let (pinned, rest) = AppList.splitFavorites(catalog.running, favorites: state.config.favorites)
+        if !pinned.isEmpty {
+            sideCaption("收藏")
+            ForEach(pinned) { sideRow(running: $0) }
+            sideCaption("其他")
+        }
+        ForEach(rest) { sideRow(running: $0) }
     }
 
     /// 「全部」：收藏的排前面、单独一节（按字典序），其余在后面

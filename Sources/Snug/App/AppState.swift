@@ -42,8 +42,6 @@ final class AppState {
     var legacyAppRunning = false
     /// 正在退出收尾
     var quitting = false
-    /// 应用内更新：查到了什么、进行到哪（Updater 写）
-    var update = UpdateState()
     /// 屏上浮着的截图界面：缩略图、裁剪或一句结果（Screenshots 写），和它在哪块屏上
     var screenshotOverlay: ScreenshotOverlay?
     var screenshotScreen: ScreenID?
@@ -130,11 +128,6 @@ protocol AppIntents: AnyObject, Sendable {
     /// 不等重连窗口，立即结束本次远程（断开后的重连等待期里才有意义，issue #29）
     func endSessionNow()
     func quit()
-    func checkForUpdates()
-    func installUpdate()
-    func setUpdateSource(_ source: UpdateSource)
-    /// 自动更新走不通时，打开所选更新源的下载地址
-    func openDownloadPage()
     /// 指示条上的相机键（截图）
     func setScreenshot(_ on: Bool)
 }
@@ -158,6 +151,8 @@ protocol TouchIntents: AnyObject, Sendable {
     func zoom(by delta: Int)
     /// 换这块屏的型号
     func setDevice(_ device: DeviceChoice)
+    /// 换这块屏底部的控件（底部横条 / 悬浮按钮）
+    func setTouchBar(_ bar: TouchBarStyle)
     /// 收藏 / 取消收藏这个 App（全局一份，各块屏的资源库一起变）
     func setFavorite(_ bundleID: String, _ on: Bool)
     /// 拖完悬浮按钮，记下它的位置（中心点，按这块屏归一化）
@@ -181,7 +176,6 @@ protocol Navigation: AnyObject, Sendable {
     func openSettings(on display: DisplayID?)
     func openWelcome()
     func openAbout(on display: DisplayID?)
-    func openUpdate()
     /// 电脑屏的 App 资源库：在哪块屏的菜单栏点，就在哪块屏打开
     func openLibrary(on display: DisplayID?)
 }

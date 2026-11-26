@@ -140,8 +140,7 @@
   --mac-tile-launch-at-login: var(--palette-gray);
   --mac-tile-accessibility: var(--palette-indigo);
   --mac-tile-screen-recording: var(--palette-red);
-  --mac-tile-update: var(--palette-blue);
-  --mac-tile-update-source: var(--palette-gray);
+  --mac-tile-version: var(--palette-gray);
   --mac-status-remote: var(--palette-green);
   --mac-status-waiting: var(--palette-gray);
   --mac-status-reconnecting: var(--palette-orange);

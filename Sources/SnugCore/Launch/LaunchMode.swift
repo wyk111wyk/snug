@@ -7,8 +7,6 @@ public enum RenderTarget: String, CaseIterable, Equatable, Sendable {
     /// 设置窗口三页，加添加屏幕、屏幕详情
     case settings
     case welcome, about, legacy
-    /// 查到新版本时的更新窗口（几种状态）
-    case update
     /// 菜单栏菜单
     case menu
     /// 手机、平板屏上的 App 资源库（竖屏、横屏、平板，几种状态）

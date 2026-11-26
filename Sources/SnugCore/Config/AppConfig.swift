@@ -16,12 +16,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var zoomSteps = 2
     /// 是否已看过首次启动的欢迎页
     public var welcomed = false
-    /// 收藏的 App（bundleID）：App 资源库「全部」页里排在最前面。全局一份，不分屏
+    /// 收藏的 App（bundleID）：App 资源库「运行中」「全部」两页里都排在最前面。全局一份，不分屏
     public var favorites: Set<String> = []
-    /// 启动时自动检查更新。默认关：自用 fork 不跟上游版本走，免得被更新覆盖；仍可在「关于 Snug」里手动检查
-    public var autoUpdate = false
-    /// 从哪检查和下载更新。UU远程 的用户基本在国内，默认腾讯云
-    public var updateSource = UpdateSource.tencent
     /// 上次运行的版本：和这次不一样说明刚换了版本，启动时弹「关于 Snug」
     public var lastVersion: Version?
 
@@ -97,7 +93,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case screens, mainScreen, nextSerialBlock, phoneScreen, gestures, screenshot, zoomSteps, phone, welcomed, favorites, autoUpdate, updateSource, lastVersion
+        case screens, mainScreen, nextSerialBlock, phoneScreen, gestures, screenshot, zoomSteps, phone, welcomed, favorites, lastVersion
     }
 
     // 每一项都有默认值：以后加字段、或者手改漏了某项，都不会让整份配置被判为损坏
@@ -134,9 +130,6 @@ public struct AppConfig: Codable, Equatable, Sendable {
         zoomSteps = try c.decodeIfPresent(Int.self, forKey: .zoomSteps).map { $0.clamped(to: Self.zoomStepsRange) } ?? d.zoomSteps
         welcomed = try c.decodeIfPresent(Bool.self, forKey: .welcomed) ?? d.welcomed
         favorites = Set((try? c.decodeIfPresent([String].self, forKey: .favorites)) ?? [])
-        autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? d.autoUpdate
-        // 不认识的更新源（更新的版本加的、降级回来）用默认值
-        updateSource = (try? c.decodeIfPresent(UpdateSource.self, forKey: .updateSource)) ?? d.updateSource
         lastVersion = try? c.decodeIfPresent(Version.self, forKey: .lastVersion)
     }
 }
@@ -165,8 +158,6 @@ extension AppConfig {
         try c.encode(zoomSteps, forKey: .zoomSteps)
         try c.encode(welcomed, forKey: .welcomed)
         try c.encode(favorites.sorted(), forKey: .favorites)
-        try c.encode(autoUpdate, forKey: .autoUpdate)
-        try c.encode(updateSource, forKey: .updateSource)
         try c.encodeIfPresent(lastVersion, forKey: .lastVersion)
     }
 }

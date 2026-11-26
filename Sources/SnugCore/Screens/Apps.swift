@@ -145,6 +145,17 @@ public enum AppList {
         return (pinned, rest)
     }
 
+    /// 在跑的 App 里收藏的挑前面（「运行中」页也把收藏排到最上面），两部分各自保持传进来的顺序（最近用过的顺序）
+    public static func splitFavorites(_ apps: [RunningApp], favorites: Set<String>) -> (pinned: [RunningApp], rest: [RunningApp]) {
+        guard !favorites.isEmpty else { return ([], apps) }
+        var pinned: [RunningApp] = []
+        var rest: [RunningApp] = []
+        for app in apps {
+            if favorites.contains(app.app.bundleID) { pinned.append(app) } else { rest.append(app) }
+        }
+        return (pinned, rest)
+    }
+
     /// 首字母相同的一组 App
     public struct LetterGroup: Equatable, Sendable, Identifiable {
         public let letter: String

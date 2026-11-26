@@ -1,4 +1,4 @@
-// 「关于 Snug」：独立的小窗口，只放名称、版本、链接、致谢与免责声明（软件更新在设置的通用页）
+// 「关于 Snug」：独立的小窗口，只放名称、版本、链接、致谢与免责声明
 import AppKit
 import SwiftUI
 import SnugCore
@@ -30,7 +30,7 @@ struct AboutView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text("Snug").font(.title2.bold())
-                            Text(Updater.current?.description ?? "开发版").foregroundStyle(.secondary).monospacedDigit()
+                            Text(AppVersion.text).foregroundStyle(.secondary).monospacedDigit()
                         }
                         Text("远程 Mac 的显示与触控增强")
                         Link("github.com/zephyr4123/snug", destination: URL(string: "https://github.com/zephyr4123/snug")!)

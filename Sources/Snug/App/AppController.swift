@@ -14,7 +14,6 @@ final class AppController: Sendable {
     static let verifyInterval: TimeInterval = 2
 
     let state = AppState()
-    let updater: Updater
     let desks: DeskSet
     /// App 资源库的统一数据源（手机、平板屏和电脑屏的资源库共用）。界面碰得到的系统入口只有 desks 和它
     let catalog: AppCatalog
@@ -54,7 +53,6 @@ final class AppController: Sendable {
         state.previewing = preview
         state.devices = devices
         state.accessibilityTrusted = AX.isTrusted
-        updater = Updater(state: state)
         AX.configureTimeout()
         // 选过的型号按机型库现在的数值来（机型库改过数值时跟着改），建屏前就定下来
         for screen in store.config.screens {
@@ -65,7 +63,7 @@ final class AppController: Sendable {
             }
         }
         // 2.6.x 设的主屏只在远程时生效；改为常驻后，代价要在设置里看过确认框才算数。升上来先撤掉，同样在建屏前定下来
-        if let current = Updater.current, let last = store.config.lastVersion {
+        if let current = AppVersion.current, let last = store.config.lastVersion {
             changeConfig("从 \(last) 升级：原先只在远程时生效的设为主屏改回「不改」（现为常驻，需在设置中重新选定）") {
                 _ = $0.dropRemoteOnlyMain(running: current)
             }

@@ -319,7 +319,6 @@ private struct ZoomSlider: View {
 struct GeneralPage: View {
     let state: AppState
     let intents: any AppIntents
-    let navigation: any Navigation
 
     var body: some View {
         Form {
@@ -340,7 +339,13 @@ struct GeneralPage: View {
                     SettingLabel.screenRecording
                 }
             }
-            UpdateSection(state: state, intents: intents, navigation: navigation)
+            Section {
+                LabeledContent {
+                    Text(AppVersion.text).foregroundStyle(.secondary).monospacedDigit()
+                } label: {
+                    SettingLabel("版本", detail: "当前运行的版本", tile: MacTokens.IconTile.version)
+                }
+            }
             Section {
             } footer: {
                 HStack {
@@ -403,7 +408,7 @@ final class SettingsWindowController {
                 let view: AnyView = switch tab {
                 case .screens: AnyView(ScreensPage(state: state, intents: intents, navigation: navigation))
                 case .touch: AnyView(TouchPage(state: state, intents: intents))
-                case .general: AnyView(GeneralPage(state: state, intents: intents, navigation: navigation))
+                case .general: AnyView(GeneralPage(state: state, intents: intents))
                 }
                 tabs.addTabViewItem(Self.item(tab, view))
             }

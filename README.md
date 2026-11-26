@@ -152,8 +152,8 @@ Snug 电脑屏按控制端分辨率建立，画面与本机一致。
 - **运行中**：每个运行中的 App 一张卡片，窗口列于其下；窗口无论位于哪块屏幕、哪个桌面空间，全屏或最小化，均可在此找到
 - **全部**：本机全部 App 的图标网格，按名称排序；轻点未运行的 App 即打开
 - **搜索**：匹配 App 名称与窗口标题，支持中文、英文、拼音全拼与首字母，如「bwl」对应「备忘录」
-- **收藏**：App 卡片右上角点星标（在「新建窗口」「退出」左边），收藏的 App 在「全部」页单独一节排在最前面
-- **底部控件**：屏幕详情里选底部横条或悬浮按钮。横条是默认；悬浮按钮浮在窗口上、可拖到屏内任意位置，被 UU远程 的工具栏挡住时用它
+- **收藏**：App 卡片右上角点星标（在「新建窗口」「退出」左边），收藏的 App 在「运行中」「全部」两页都排在最前面
+- **底部控件**：底部横条或悬浮按钮，在设置里这块屏的详情、或屏上「型号」页改。横条是默认；悬浮按钮浮在窗口上、可拖到屏内任意位置，被 UU远程 的工具栏挡住时用它
 
 <p align="center"><img src="https://dl.zephyrxiang.com/snug/media/phone-app-library.865fc506.png" width="30%" alt="运行中：手机屏上窗口所属的 App 置于最上方"> <img src="https://dl.zephyrxiang.com/snug/media/phone-all-apps.7d4ada60.png" width="30%" alt="全部：本机全部 App 的图标网格"> <img src="https://dl.zephyrxiang.com/snug/media/phone-search.d365e194.png" width="30%" alt="搜索：输入 bwl 找到备忘录"><br><sub>运行中 · 全部 · 拼音首字母搜索</sub></p>
 
@@ -228,7 +228,7 @@ Snug 呈现的是 Mac 上的原生窗口，适用于任意 App，不绑定特定
 
 此后 Snug 常驻菜单栏，无需额外操作；再次打开 Snug 即显示设置。
 
-**更新**：启动时自动检查，一键更新，保留设置与授权；亦可在设置「通用」页手动检查或切换更新源。2.1.0 之前的版本需手动下载替换。
+**更新**：此版本不含应用内在线更新，换了新版本请手动替换（或在本仓库跑 `scripts/snug install`）。当前版本号见菜单栏「关于 Snug」与设置「通用」页。
 
 <div align="center">
 <img src="https://dl.zephyrxiang.com/snug/media/welcome.d538a8c3.png" width="30%" alt="欢迎页：用法与辅助功能授权"> <img src="https://dl.zephyrxiang.com/snug/media/settings-screens.694e6c80.png" width="30%" alt="设置「屏幕」页：屏幕列表与设为主屏"> <img src="https://dl.zephyrxiang.com/snug/media/settings-general.4e8bfc2c.png" width="30%" alt="设置「通用」页：开机启动、权限与软件更新">
@@ -271,7 +271,7 @@ rm ~/Library/LaunchAgents/com.corndog.uudisplay.watchdog-agent.plist
 - **先记录，后改动**：预先记录窗口原始位置与字号，Snug 意外退出后亦可还原
 - **窗口直接关闭亦可还原**：在移动端直接关闭的窗口，App 下次以 Snug 屏幕尺寸打开时，自动归位并复原字号
 - **无响应时保持原状**：App 暂无响应时不强行移动窗口，并在屏上说明原因
-- **不收集数据**：除检查更新外不连接任何服务器，不收集任何数据；截图仅存入本机剪贴板，不留存
+- **不收集数据**：不连接任何服务器，不收集任何数据；截图仅存入本机剪贴板，不留存
 
 ## 🚧 已知限制
 

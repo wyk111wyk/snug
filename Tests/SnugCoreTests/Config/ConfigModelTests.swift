@@ -13,7 +13,7 @@ struct ConfigModelTests {
         #expect(!c.screenshot)
         #expect(c.zoomSteps == 2)
         #expect(!c.welcomed)
-        #expect(c.updateSource == .tencent)
+        #expect(c.favorites.isEmpty)
         #expect(c.lastVersion == nil)
     }
 
@@ -200,13 +200,6 @@ struct ConfigModelTests {
         #expect(throws: DecodingError.self) { try decode(#"{"screens":{"id":"a"},"phoneScreen":true}"#) }
     }
 
-    @Test("不认识的更新源（比如更新的版本写的）用默认值，不把整份配置判为损坏")
-    func unknownUpdateSource() throws {
-        let c = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"updateSource":"mirror","zoomSteps":3}"#.utf8))
-        #expect(c.updateSource == .tencent)
-        #expect(c.zoomSteps == 3)
-    }
-
     @Test("缺字段的 config.json 用默认值补齐；旧版留下的字段忽略，而不是整份判为损坏")
     func decodeMissingAndLegacyKeys() throws {
         let json = #"{"gestures":false,"devices":[{"name":"iPad"}],"keepOnlyVirtual":true}"#
@@ -233,7 +226,7 @@ struct ConfigModelTests {
         c.screenshot = true
         c.zoomSteps = 3
         c.welcomed = true
-        c.updateSource = .github
+        c.favorites = ["com.apple.Notes"]
         c.lastVersion = Version(major: 2, minor: 1, patch: 0)
         c.screens[0].device = DeviceChoice(model: "华为 Mate 70 Pro", screen: DeviceScreen(width: 1260, height: 2832))
         c.addScreen(orientation: .landscape, device: DeviceChoice(model: nil, screen: DeviceScreen(width: 1600, height: 2560, notch: 30), kind: .computer))
@@ -291,13 +284,6 @@ struct ConfigModelTests {
         let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(kept)) as? [String: Any]
         #expect(json?["favorites"] as? [String] == ["a", "b"])
         #expect(try JSONDecoder().decode(AppConfig.self, from: JSONEncoder().encode(kept)) == kept)
-    }
-
-    @Test("默认不自动检查更新；老配置没有这个字段时也按默认（关）")
-    func autoUpdateDefault() throws {
-        #expect(!AppConfig().autoUpdate)
-        #expect(try decode(#"{"zoomSteps":3}"#).autoUpdate == false)
-        #expect(try decode(#"{"autoUpdate":true}"#).autoUpdate)
     }
 
     @Test("屏幕项没有 touchBar / floatingAnchor（老配置）时按默认读：底部横条、位置 nil，不丢这块屏")
