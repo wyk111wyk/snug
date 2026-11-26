@@ -579,8 +579,8 @@ final class HomeBarView: NSView {
 /// （TouchRegion 的洞），事件原样到这儿，拖动移动面板本身，松手把落点交回 ScreenWindows 记进配置。
 /// 屏换到更宽的一档时跟着放大（scale），在手机上看着、点着、拖着都和基准宽度一样
 final class FloatingBarView: NSView {
-    /// 基准宽度下挪过这么多点算拖动，没到算点一下
-    static let dragThreshold: CGFloat = 8
+    /// 基准宽度下挪过这么多点才算拖动（比手势翻译的 10 点宽容些：手指搭在按钮上会轻微漂，别把长按误判成拖动）
+    static let dragThreshold: CGFloat = 16
     /// 按住不动这么久算长按（跳出收藏的快捷切换）
     static let holdDelay: TimeInterval = 0.5
     /// 一段时间没碰就淡到这个透明度，好看清下面的内容；一碰就恢复
@@ -749,11 +749,13 @@ final class FloatingBarView: NSView {
         setDimmed(false)
         fadeTimer?.invalidate()
         startHoldRing()
+        Log.info("悬浮按钮：按下")
         // 按住不动一会儿：跳出收藏的快捷切换
         let timer = Timer(timeInterval: Self.holdDelay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isDragging, !self.moved else { return }
                 self.longPressed = true
+                Log.info("悬浮按钮：长按，弹出收藏切换")
                 self.onLongPress?()
             }
         }
@@ -770,6 +772,7 @@ final class FloatingBarView: NSView {
             holdTimer?.invalidate()
             holdTimer = nil
             stopHoldRing()   // 是在拖，不是在长按
+            Log.info("悬浮按钮：当作拖动（已挪 \(Int(hypot(dx, dy))) 点），不认长按")
         }
         guard moved else { return }
         window.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
@@ -793,6 +796,12 @@ final class FloatingBarView: NSView {
         }
         let point = convert(event.locationInWindow, from: nil)
         guard bounds.contains(point) else { return }
-        if showsCamera, cameraArea.contains(point) { onCapture?() } else { onActivate?() }
+        if showsCamera, cameraArea.contains(point) {
+            Log.info("悬浮按钮：点相机键")
+            onCapture?()
+        } else {
+            Log.info("悬浮按钮：点一下，回 App 资源库")
+            onActivate?()
+        }
     }
 }
