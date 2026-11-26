@@ -41,8 +41,6 @@ final class AppCatalog {
     @ObservationIgnored private var reorder = true
     /// 重启的循环先发布一次窗口位置，不等整轮 AX 扫描
     @ObservationIgnored private var spotsFirst = false
-    /// 诊断用：上一次标题变动的时刻（按 pid），限流用
-    @ObservationIgnored private var titleLogAt: [Int32: TimeInterval] = [:]
 
     init(apps: AppService, windows: WindowService, excluding excluded: Set<String>) {
         self.excluded = excluded
@@ -63,24 +61,6 @@ final class AppCatalog {
         self.installed = AppList.sorted(installed, excluding: [])
         self.loaded = loaded
         self.spots = spots
-    }
-
-    /// 诊断用（2026-11-26 起，摸 AI 客户端能不能从窗口标题看出「在干活 / 干完了」）：
-    /// 标题一变就记一行，同一个 App 每 2 秒最多一条。看一阵子日志就能定标题这条路可不可用，定完删掉
-    private func logTitleChanges(from previous: [RunningApp], to next: [RunningApp]) {
-        let now = ProcessInfo.processInfo.systemUptime
-        let before = Dictionary(previous.map { ($0.pid, $0.windows) }, uniquingKeysWith: { first, _ in first })
-        for app in next {
-            guard let old = before[app.pid] else { continue }
-            let titles = Dictionary(old.map { ($0.key, $0.title) }, uniquingKeysWith: { first, _ in first })
-            for window in app.windows {
-                guard let was = titles[window.key], was != window.title else { continue }
-                if let last = titleLogAt[app.pid], now - last < 2 { continue }
-                titleLogAt[app.pid] = now
-                Log.info("标题变了：\(app.app.name)「\(was)」→「\(window.title)」")
-            }
-        }
-        if next.isEmpty { titleLogAt = [:] }
     }
 
     /// 露着资源库：busy 是这块屏正在放窗口、打开 App（列表被盖住）；spots 是还要每个窗口在哪块屏（电脑屏的资源库窗口）
@@ -134,7 +114,6 @@ final class AppCatalog {
                     spotsFirst = false
                     guard forgotten == before else { continue }
                     let next = AppList.refreshed(fresh, shown: running, reorder: reorder, excluding: excluded)
-                    logTitleChanges(from: running, to: next)
                     if next != running { running = next }
                     if let located, locating, located != spots { spots = located }
                     loaded = true

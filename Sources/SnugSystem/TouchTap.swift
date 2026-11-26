@@ -70,10 +70,6 @@ private final class TapSession: @unchecked Sendable {
     private var injected: InjectedEvents
     /// 这一下按在哪块范围里：之后的拖动、抬起跟着这一下走，手指滑出范围也一样
     private var pressed: TouchRegion?
-    /// 诊断用（2026-11-26）：上一下按在了悬浮按钮附近（≤120 点）却没落上去，记着它的位置
-    private var nearButtonPress: CGPoint?
-    /// 诊断用：最近一次远控注入的鼠标移动（查「按下前的移动是不是新位置」）
-    private var lastMove: (point: CGPoint, time: TimeInterval)?
 
     init(regions: OSAllocatedUnfairLock<[TouchRegion]>, injectors: [InjectedEventSource], closeWindow: @escaping @Sendable (UInt32) -> Void) {
         self.regions = regions
@@ -135,64 +131,17 @@ private final class TapSession: @unchecked Sendable {
             Log.warn("手势翻译的事件监听被系统停用（\(type == .tapDisabledByTimeout ? "回调超时" : "用户输入")），已重新开启")
             return pass
         }
-        // 诊断用：记下远控注入的鼠标移动（只看，不参与翻译）
-        if type == .mouseMoved, injected.contains(event) {
-            lastMove = (event.location, ProcessInfo.processInfo.systemUptime)
-            return pass
-        }
         guard let kind = TouchEvents.kind(of: type), !TouchEvents.isReplay(event), injected.contains(event) else { return pass }
 
         let input = TouchInput(kind, at: event.location, time: ProcessInfo.processInfo.systemUptime)
-        if kind == .press {
-            noteMoveBeforePress(event.location, at: input.time)
-            pressed = regions.withLock { $0 }.first { $0.frame.contains(event.location) }
-            notePressNearButton(event.location)
-        }
+        if kind == .press { pressed = regions.withLock { $0 }.first { $0.frame.contains(event.location) } }
         let region = pressed
         let response = translator.handle(input, in: region)
         if kind == .press, !response.passOriginal { heldPress = event.copy() }
         response.commands.forEach { perform($0, current: event, region: region) }
-        if kind == .release {
-            heldPress = nil
-            noteReleaseReachingButton(event.location)
-        }
+        if kind == .release { heldPress = nil }
         if translator.isCoasting { startCoasting() }
         return response.passOriginal ? pass : nil
-    }
-
-    /// 诊断（2026-11-26，查「第一次点击长按不生效」）：按下前 150ms 内有一次移动、位置还不一样——
-    /// 看按下带的是不是旧位置（用移动的位置纠正）。定完原因就删掉
-    private func noteMoveBeforePress(_ point: CGPoint, at time: TimeInterval) {
-        guard let last = lastMove, time - last.time <= 0.15 else { return }
-        let gap = hypot(Double(last.point.x - point.x), Double(last.point.y - point.y))
-        guard gap >= 2 else { return }
-        Log.info(String(format: "按下前 %.0fms 有一次移动：移动 (%d, %d) → 按下 (%d, %d)，差 %.0f 点",
-                        (time - last.time) * 1000, Int(last.point.x), Int(last.point.y), Int(point.x), Int(point.y), gap))
-    }
-
-    /// 诊断（2026-11-26，查「第一次点击长按不生效」）：按下落在悬浮按钮附近（≤120 点）却没落上去时记一行，
-    /// 并记住位置；抬起若落到了按钮上，把「按下 → 抬起」两点都记下来。定完原因就删掉
-    private func notePressNearButton(_ point: CGPoint) {
-        guard let gap = distanceToFloatingButton(point), gap > 0, gap <= 120 else { nearButtonPress = nil; return }
-        nearButtonPress = point
-        Log.info(String(format: "悬浮按钮附近按下：(%d, %d)，离按钮 %.0f 点（没落在按钮上）", Int(point.x), Int(point.y), gap))
-    }
-
-    private func noteReleaseReachingButton(_ point: CGPoint) {
-        defer { nearButtonPress = nil }
-        guard let from = nearButtonPress, distanceToFloatingButton(point) == 0 else { return }
-        Log.info(String(format: "这次手势：按下 (%d, %d) → 抬起 (%d, %d)，抬起才落到按钮上",
-                        Int(from.x), Int(from.y), Int(point.x), Int(point.y)))
-    }
-
-    /// 这一点离最近的悬浮按钮多少点（落在按钮上为 0；没有按钮时为 nil）
-    private func distanceToFloatingButton(_ point: CGPoint) -> CGFloat? {
-        let holes = regions.withLock { $0 }.compactMap(\.hole)
-        return holes.map { hole in
-            let dx = max(max(hole.minX - point.x, point.x - hole.maxX), 0)
-            let dy = max(max(hole.minY - point.y, point.y - hole.maxY), 0)
-            return hypot(dx, dy)
-        }.min()
     }
 
     private func perform(_ command: TouchCommand, current: CGEvent, region: TouchRegion?) {

@@ -243,6 +243,8 @@ struct FavoriteSwitcher: View {
     let icon: (AppInfo) -> NSImage
     let pick: (AppInfo) -> Void
     let close: () -> Void
+    /// 各 AI 客户端「在不在干活」：读它画行尾的状态点
+    let activity: SessionActivityStore
 
     @State private var appeared = false
     @State private var picked: String?
@@ -302,6 +304,7 @@ struct FavoriteSwitcher: View {
                     Text(row.window).font(TouchTokens.Font.caption.font).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                activityMark(activity.activity(row.id))
             }
             .padding(.horizontal, TouchTokens.Space.m)
             .frame(height: 52)
@@ -324,6 +327,21 @@ struct FavoriteSwitcher: View {
             .padding(.horizontal, TouchTokens.Space.s)
             .padding(.vertical, TouchTokens.Space.xxs)
             .background(TouchTokens.Color.card, in: Capsule())
+    }
+
+    /// 行尾的状态点：在干活一个蓝点、已完成一个绿勾、不知道留空（占位，行高不跳）
+    @ViewBuilder private func activityMark(_ state: SessionActivity) -> some View {
+        switch state {
+        case .working:
+            Circle().fill(TouchTokens.Color.tint).frame(width: 10, height: 10).frame(width: 22, height: 22)
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .font(TouchTokens.Font.headline.font)
+                .foregroundStyle(TouchTokens.Color.positive)
+                .frame(width: 22, height: 22)
+        case .unknown:
+            Color.clear.frame(width: 22, height: 22)
+        }
     }
 }
 

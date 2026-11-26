@@ -10,9 +10,8 @@ enum TouchEvents {
     /// eventSourceUserData 里的记号（'SNUG'）
     private static let marker: Int64 = 0x534E_5547
 
-    /// 接管的事件：鼠标左键（远控把手指的按下、拖动、抬起都当成左键发过来：UU 实测，RustDesk 源码同样），
-    /// 外加鼠标移动——只用于诊断「按下前那一下移动」（查第一次点击长按不生效），不参与手势翻译
-    static let mask = [CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp, .mouseMoved].reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+    /// 接管的事件：只有鼠标左键（远控把手指的按下、拖动、抬起都当成左键发过来：UU 实测，RustDesk 源码同样）
+    static let mask = [CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp].reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
 
     static func kind(of type: CGEventType) -> TouchInput.Kind? {
         switch type {
