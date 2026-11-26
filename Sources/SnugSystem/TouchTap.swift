@@ -72,6 +72,8 @@ private final class TapSession: @unchecked Sendable {
     private var pressed: TouchRegion?
     /// 诊断用（2026-11-26）：上一下按在了悬浮按钮附近（≤120 点）却没落上去，记着它的位置
     private var nearButtonPress: CGPoint?
+    /// 诊断用：最近一次远控注入的鼠标移动（查「按下前的移动是不是新位置」）
+    private var lastMove: (point: CGPoint, time: TimeInterval)?
 
     init(regions: OSAllocatedUnfairLock<[TouchRegion]>, injectors: [InjectedEventSource], closeWindow: @escaping @Sendable (UInt32) -> Void) {
         self.regions = regions
@@ -133,10 +135,16 @@ private final class TapSession: @unchecked Sendable {
             Log.warn("手势翻译的事件监听被系统停用（\(type == .tapDisabledByTimeout ? "回调超时" : "用户输入")），已重新开启")
             return pass
         }
+        // 诊断用：记下远控注入的鼠标移动（只看，不参与翻译）
+        if type == .mouseMoved, injected.contains(event) {
+            lastMove = (event.location, ProcessInfo.processInfo.systemUptime)
+            return pass
+        }
         guard let kind = TouchEvents.kind(of: type), !TouchEvents.isReplay(event), injected.contains(event) else { return pass }
 
         let input = TouchInput(kind, at: event.location, time: ProcessInfo.processInfo.systemUptime)
         if kind == .press {
+            noteMoveBeforePress(event.location, at: input.time)
             pressed = regions.withLock { $0 }.first { $0.frame.contains(event.location) }
             notePressNearButton(event.location)
         }
@@ -150,6 +158,16 @@ private final class TapSession: @unchecked Sendable {
         }
         if translator.isCoasting { startCoasting() }
         return response.passOriginal ? pass : nil
+    }
+
+    /// 诊断（2026-11-26，查「第一次点击长按不生效」）：按下前 150ms 内有一次移动、位置还不一样——
+    /// 看按下带的是不是旧位置（用移动的位置纠正）。定完原因就删掉
+    private func noteMoveBeforePress(_ point: CGPoint, at time: TimeInterval) {
+        guard let last = lastMove, time - last.time <= 0.15 else { return }
+        let gap = hypot(Double(last.point.x - point.x), Double(last.point.y - point.y))
+        guard gap >= 2 else { return }
+        Log.info(String(format: "按下前 %.0fms 有一次移动：移动 (%d, %d) → 按下 (%d, %d)，差 %.0f 点",
+                        (time - last.time) * 1000, Int(last.point.x), Int(last.point.y), Int(point.x), Int(point.y), gap))
     }
 
     /// 诊断（2026-11-26，查「第一次点击长按不生效」）：按下落在悬浮按钮附近（≤120 点）却没落上去时记一行，
