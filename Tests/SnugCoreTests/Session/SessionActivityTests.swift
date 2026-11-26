@@ -20,6 +20,21 @@ struct SessionActivityTests {
         #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(5), now: now) == .working)
     }
 
+    @Test("客户端自己说在忙就以它为准：忙=进行中（不看时间戳）；闲=最近干过标已完成、太久不标")
+    func busyWins() {
+        #expect(SessionActivityRule.state(busy: true, lastActivity: nil, now: now) == .working)
+        // 忙的时候不看时间戳：等模型时长时间没有输出，它说在忙就是在忙
+        #expect(SessionActivityRule.state(busy: true, lastActivity: now.addingTimeInterval(-3600), now: now) == .working)
+        #expect(SessionActivityRule.state(busy: false, lastActivity: now.addingTimeInterval(-1), now: now) == .done)
+        #expect(SessionActivityRule.state(busy: false, lastActivity: now.addingTimeInterval(-SessionActivityRule.doneWindow), now: now) == .done)
+        #expect(SessionActivityRule.state(busy: false, lastActivity: now.addingTimeInterval(-SessionActivityRule.doneWindow - 1), now: now) == .unknown)
+        #expect(SessionActivityRule.state(busy: false, lastActivity: nil, now: now) == .unknown)
+        // 没说自己忙不忙：退回按时间戳判
+        #expect(SessionActivityRule.state(busy: nil, lastActivity: now, now: now) == .working)
+        #expect(SessionActivityRule.state(busy: nil, lastActivity: now.addingTimeInterval(-60), now: now) == .done)
+        #expect(SessionActivityRule.state(busy: nil, lastActivity: nil, now: now) == .unknown)
+    }
+
     @Test("数据源表：每家一个 bundleID、不重复；路径、查询都写着")
     func sources() {
         let all = SessionSources.all

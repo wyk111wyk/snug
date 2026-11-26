@@ -329,19 +329,32 @@ struct FavoriteSwitcher: View {
             .background(TouchTokens.Color.card, in: Capsule())
     }
 
-    /// 行尾的状态点：在干活一个蓝点、已完成一个绿勾、不知道留空（占位，行高不跳）
+    /// 行尾的状态：在干活一个自己画的转圈弧（不用 ProgressView，免得和「正在切换」的转圈撞）、
+    /// 已结束一个圆点、不知道留空（都占同样大小，行高不跳）
     @ViewBuilder private func activityMark(_ state: SessionActivity) -> some View {
         switch state {
         case .working:
-            Circle().fill(TouchTokens.Color.tint).frame(width: 10, height: 10).frame(width: 22, height: 22)
+            WorkingMark().frame(width: 22, height: 22)
         case .done:
-            Image(systemName: "checkmark.circle.fill")
-                .font(TouchTokens.Font.headline.font)
-                .foregroundStyle(TouchTokens.Color.positive)
-                .frame(width: 22, height: 22)
+            Circle().fill(TouchTokens.Color.tint).frame(width: 10, height: 10).frame(width: 22, height: 22)
         case .unknown:
             Color.clear.frame(width: 22, height: 22)
         }
+    }
+}
+
+/// 「正在干活」的转圈弧：自己画，和系统的 ProgressView（用在别处）区分开
+private struct WorkingMark: View {
+    @State private var spinning = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.26)
+            .stroke(TouchTokens.Color.tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            .frame(width: 16, height: 16)
+            .rotationEffect(.degrees(spinning ? 360 : 0))
+            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spinning)
+            .onAppear { spinning = true }
     }
 }
 

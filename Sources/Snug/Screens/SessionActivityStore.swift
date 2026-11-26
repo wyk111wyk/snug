@@ -51,7 +51,8 @@ final class SessionActivityStore {
             let now = Date()
             var next: [String: SessionActivity] = [:]
             for source in sources {
-                next[source.bundleID] = SessionActivityRule.state(lastActivity: reader.lastActivity(source), now: now)
+                let reading = reader.reading(source)
+                next[source.bundleID] = SessionActivityRule.state(busy: reading.busy, lastActivity: reading.lastActivity, now: now)
             }
             await MainActor.run { self?.states = next }
         }

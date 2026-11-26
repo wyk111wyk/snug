@@ -1,4 +1,4 @@
-// 读各 AI 客户端自己留下的会话数据，取「最近一次活动」的时间。只读，不写；读不到就交回 nil。
+// 读各 AI 客户端自己留下的会话数据：客户端有没有说自己在忙、最近一次活动在什么时候。只读，不写；读不到就交回空的。
 // 从哪读、怎么判在 SnugCore（SessionSources / SessionActivityRule），这里只管把文件、库读出来
 import Foundation
 import SnugCore
@@ -7,32 +7,35 @@ import SQLite3
 public struct SessionReader: Sendable {
     public init() {}
 
-    /// 一个来源最近一次活动的时间；没装、没这个表、文件没有，都返回 nil
-    public func lastActivity(_ source: SessionSource) -> Date? {
+    /// 一个来源的读数；库不在、表不在、文件没有，都交回空的（busy 为 nil、时间为 nil）
+    public func reading(_ source: SessionSource) -> SessionReading {
         switch source.kind {
-        case .sqlite(let path, let query): sqliteLastActivity(path: path, query: query)
-        case .newestFile(let root, let prefix, let suffix, let depth): newestFile(root: root, prefix: prefix, suffix: suffix, depth: depth)
+        case .sqlite(let path, let query):
+            sqliteReading(path: path, query: query)
+        case .newestFile(let root, let prefix, let suffix, let depth):
+            SessionReading(lastActivity: newestFile(root: root, prefix: prefix, suffix: suffix, depth: depth))
         }
     }
 
-    /// 只读打开库、跑一句取时间的查询。库不在、表不在、时间戳为 0 都返回 nil
-    private func sqliteLastActivity(path: String, query: String) -> Date? {
+    /// 只读打开库、跑一句查询：第 1 列 busy（可为 NULL）、第 2 列最近活动的毫秒时间戳
+    private func sqliteReading(path: String, query: String) -> SessionReading {
         let file = (path as NSString).expandingTildeInPath
         var db: OpaquePointer?
         guard sqlite3_open_v2(file, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let db else {
             if let db { sqlite3_close(db) }
-            return nil
+            return SessionReading()
         }
         defer { sqlite3_close(db) }
         // 客户端正在写的时候等一小会儿，别把它锁住
         sqlite3_busy_timeout(db, 200)
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK, let statement else { return nil }
+        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK, let statement else { return SessionReading() }
         defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
-        let milliseconds = sqlite3_column_int64(statement, 0)
-        guard milliseconds > 0 else { return nil }
-        return Date(timeIntervalSince1970: Double(milliseconds) / 1000)
+        guard sqlite3_step(statement) == SQLITE_ROW else { return SessionReading() }
+        let busy: Bool? = sqlite3_column_type(statement, 0) == SQLITE_NULL ? nil : sqlite3_column_int64(statement, 0) != 0
+        let milliseconds = sqlite3_column_type(statement, 1) == SQLITE_NULL ? 0 : sqlite3_column_int64(statement, 1)
+        return SessionReading(busy: busy,
+                              lastActivity: milliseconds > 0 ? Date(timeIntervalSince1970: Double(milliseconds) / 1000) : nil)
     }
 
     /// 沿着名字最大的子目录往下走（日期目录 YYYY/MM/DD 正好按时间排），最后一层里取匹配文件的最新修改时间
