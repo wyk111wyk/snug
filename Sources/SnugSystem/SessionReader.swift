@@ -34,8 +34,12 @@ public struct SessionReader: Sendable {
         guard sqlite3_step(statement) == SQLITE_ROW else { return SessionReading() }
         let busy: Bool? = sqlite3_column_type(statement, 0) == SQLITE_NULL ? nil : sqlite3_column_int64(statement, 0) != 0
         let milliseconds = sqlite3_column_type(statement, 1) == SQLITE_NULL ? 0 : sqlite3_column_int64(statement, 1)
+        // 第 3 列（可选）是「最后查看」时刻：只有会记这个的客户端才有，没有就当作没看过
+        let viewed = sqlite3_column_count(statement) > 2 && sqlite3_column_type(statement, 2) != SQLITE_NULL
+            ? sqlite3_column_int64(statement, 2) : 0
         return SessionReading(busy: busy,
-                              lastActivity: milliseconds > 0 ? Date(timeIntervalSince1970: Double(milliseconds) / 1000) : nil)
+                              lastActivity: milliseconds > 0 ? Date(timeIntervalSince1970: Double(milliseconds) / 1000) : nil,
+                              lastViewed: viewed > 0 ? Date(timeIntervalSince1970: Double(viewed) / 1000) : nil)
     }
 
     /// 沿着名字最大的子目录往下走（日期目录 YYYY/MM/DD 正好按时间排），最后一层里取匹配文件的最新修改时间
