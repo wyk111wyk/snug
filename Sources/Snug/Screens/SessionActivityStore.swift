@@ -1,5 +1,5 @@
-// 各 AI 客户端「在不在干活」：只在收藏切换条露着时轮询（每 2 秒），收起就停——不给后台添负担。
-// 读库 / 读文件是阻塞的，放后台线程做；算好的状态回主线程发布，界面读它画状态点
+// 各 AI 客户端的会话与状态：只在资源库露着（或长按弹出列表）时轮询，收起就停——不给后台添负担。
+// 读库 / 读文件是阻塞的，放后台线程做；算好的结果回主线程发布，界面读它画会话名和状态标记
 import Foundation
 import Observation
 import SnugCore
@@ -8,13 +8,11 @@ import SnugSystem
 @MainActor
 @Observable
 final class SessionActivityStore {
-    /// 切换条露着时多久读一次
+    /// 露着时多久读一次
     static let interval: TimeInterval = 2
 
-    /// 按 bundleID 的状态；没读到的按「不知道」
-    private(set) var states: [String: SessionActivity] = [:]
-    /// 按 bundleID 的会话名（客户端自己有存的话）
-    private(set) var sessionTitles: [String: String] = [:]
+    /// 按 bundleID 的各条会话（已滤掉看过、太久的；在干活的排前面）
+    private(set) var sessions: [String: [SessionEntry]] = [:]
 
     @ObservationIgnored private let reader = SessionReader()
     @ObservationIgnored private let sources: [SessionSource]
@@ -24,9 +22,26 @@ final class SessionActivityStore {
         self.sources = sources
     }
 
-    func activity(_ bundleID: String) -> SessionActivity { states[bundleID] ?? .unknown }
+    /// 这个 App 最「活跃」那条会话的状态（在干活 > 已结束 > 不知道）
+    func activity(_ bundleID: String) -> SessionActivity {
+        let list = sessions[bundleID] ?? []
+        if list.contains(where: { $0.activity == .working }) { return .working }
+        if list.contains(where: { $0.activity == .done }) { return .done }
+        return .unknown
+    }
 
-    /// 切换条露出来：开始轮询。先立刻读一次，读不到的先按上次的值显示（不清空，免得第一眼闪成「不知道」）
+    /// 这个 App 的会话名：在干活的那条优先，否则最近那条
+    func sessionTitle(_ bundleID: String) -> String? {
+        let list = sessions[bundleID] ?? []
+        let picked = list.first { $0.activity == .working } ?? list.first
+        guard let title = picked?.title, !title.isEmpty else { return nil }
+        return title
+    }
+
+    /// 这个 App 是不是支持的 Agent 应用（有会话源）
+    func supports(_ bundleID: String) -> Bool { sources.contains { $0.bundleID == bundleID } }
+
+    /// 露出来：开始轮询。先立刻读一次，读不到的先按上次的值显示（不清空，免得第一眼闪成「不知道」）
     func start() {
         guard poller == nil else { return }
         read()
@@ -39,7 +54,7 @@ final class SessionActivityStore {
         }
     }
 
-    /// 收起：停掉轮询。状态留着（下次露出来先用它显示第一帧，读回来再改），
+    /// 收起：停掉轮询。结果留着（下次露出来先用它显示第一帧，读回来再改），
     /// 只有远程结束、屏幕拆掉时才随着 store 一起没了
     func stop() {
         poller?.cancel()
@@ -50,30 +65,18 @@ final class SessionActivityStore {
         let sources = self.sources
         let reader = self.reader
         Task.detached { [weak self] in
-            let now = Date()
-            var next: [String: SessionActivity] = [:]
-            var titles: [String: String] = [:]
+            var next: [String: [SessionEntry]] = [:]
             for source in sources {
                 let reading = reader.reading(source)
-                if let title = reading.sessionTitle { titles[source.bundleID] = title }
-                // 这一次什么都没读到（库被锁、文件没在写）：保留上一次的结果，不要冲成「不知道」
-                if reading.busy == nil, reading.lastActivity == nil,
-                   let previous = await self?.states[source.bundleID] {
+                // 进程不在、或这一次什么都没读到（库被锁）：保留上一次的结果，不要冲成空白
+                if !reading.running || reading.sessions.isEmpty,
+                   let previous = await self?.sessions[source.bundleID] {
                     next[source.bundleID] = previous
                     continue
                 }
-                next[source.bundleID] = SessionActivityRule.state(reading: reading, now: now)
+                next[source.bundleID] = reading.sessions
             }
-            await MainActor.run {
-                self?.states = next
-                if !titles.isEmpty { self?.sessionTitles = titles }
-            }
+            await MainActor.run { self?.sessions = next }
         }
     }
-
-    /// 这个 App 最近一轮的会话名（读不到就是 nil）
-    func sessionTitle(_ bundleID: String) -> String? { sessionTitles[bundleID] }
-
-    /// 这个 App 是不是支持的 Agent 应用（有会话源、能读会话名和状态）
-    func supports(_ bundleID: String) -> Bool { sources.contains { $0.bundleID == bundleID } }
 }

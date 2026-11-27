@@ -236,6 +236,8 @@ struct FavoriteSwitcher: View {
         let app: AppInfo
         let window: String
         let active: Bool
+        /// 这个 App 的各条会话（能同时跑多个 session 的客户端才有）
+        var sessions: [SessionEntry] = []
         var id: String { app.bundleID }
     }
 
@@ -273,6 +275,10 @@ struct FavoriteSwitcher: View {
             ForEach(Array(rows.enumerated()), id: \.element) { index, row in
                 if index > 0 { Divider().padding(.leading, TouchTokens.Space.m) }
                 rowView(row, index: index)
+                // 会话不止一条（或这一条有名字）：每条会话各占一行，状态挂在各自那一行上
+                ForEach(Array(row.sessions.enumerated()), id: \.element) { sessionIndex, session in
+                    sessionRow(session, of: row, index: index + sessionIndex + 1)
+                }
             }
         }
         .frame(width: Self.width, alignment: .leading)
@@ -301,14 +307,14 @@ struct FavoriteSwitcher: View {
                         Text(row.app.name).font(TouchTokens.Font.label.font).lineLimit(1)
                         if row.active { activeBadge }
                     }
-                    // 有会话名就显示会话名（它比窗口标题更能说明在干什么），没有才退回窗口名
-                    Text(activity.sessionTitle(row.id) ?? row.window)
+                    // 有会话行时副标题就是窗口名；没有会话时才退回会话名（两者都说明在干什么）
+                    Text(row.sessions.isEmpty ? (activity.sessionTitle(row.id) ?? row.window) : row.window)
                         .font(TouchTokens.Font.caption.font)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                activityMark(activity.activity(row.id))
+                if row.sessions.isEmpty { activityMark(activity.activity(row.id)) }
             }
             .padding(.horizontal, TouchTokens.Space.m)
             .frame(height: 52)
@@ -317,6 +323,25 @@ struct FavoriteSwitcher: View {
         .buttonStyle(PressableStyle())
         .accessibilityLabel(row.active ? "\(row.app.name)，已激活" : row.app.name)
         .opacity(picked == nil || choosing ? 1 : 0.4)
+        .scaleEffect(appeared ? 1 : 0.4, anchor: .bottom)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 16)
+        .animation(.spring(response: 0.32, dampingFraction: 0.7).delay(0.03 * Double(index)), value: appeared)
+    }
+
+    /// 一条会话一行：缩进一个图标宽、名字 + 它自己的状态
+    private func sessionRow(_ session: SessionEntry, of row: Row, index: Int) -> some View {
+        HStack(spacing: TouchTokens.Space.m) {
+            Text(session.title.isEmpty ? "（未命名会话）" : session.title)
+                .font(TouchTokens.Font.caption.font)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            activityMark(session.activity)
+        }
+        .padding(.leading, TouchTokens.Space.m + Self.iconSize + TouchTokens.Space.m)
+        .padding(.trailing, TouchTokens.Space.m)
+        .frame(height: 34)
         .scaleEffect(appeared ? 1 : 0.4, anchor: .bottom)
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 16)

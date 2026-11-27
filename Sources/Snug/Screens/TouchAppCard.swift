@@ -28,6 +28,8 @@ struct AppCard: View {
     var sessionTitle: String? = nil
     /// 这个 App 此刻的 Agent 状态（在干活 / 已结束 / 不知道）。nil = 不是支持的 Agent 应用
     var activity: SessionActivity? = nil
+    /// 这个 App 的各条会话：能同时跑多个 session 的客户端（如 ZCode）逐条列出来，状态挂在各自那一行
+    var sessions: [SessionEntry] = []
     @Binding var confirming: TouchHomeView.Confirm?
     let icon: NSImage
     let intents: any TouchIntents
@@ -40,6 +42,7 @@ struct AppCard: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            sessionRows
             ForEach(app.windows) { window in
                 let isPlaced = window.key == placed?.window.key
                 Divider().padding(.leading, AppRowLabel.textInset)
@@ -54,6 +57,26 @@ struct AppCard: View {
         .card()
     }
 
+    /// 各条会话：一行一条，名字 + 它自己的状态。能同时跑多个 session 的客户端才用得上
+    @ViewBuilder private var sessionRows: some View {
+        if !sessions.isEmpty {
+            ForEach(sessions) { session in
+                Divider().padding(.leading, AppRowLabel.textInset)
+                HStack(spacing: TouchTokens.Space.m) {
+                    Text(session.title.isEmpty ? "（未命名会话）" : session.title)
+                        .font(TouchTokens.Font.body.font)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    AgentStatusMark(activity: session.activity)
+                }
+                .padding(.leading, AppRowLabel.textInset)
+                .padding(.trailing, TouchTokens.Space.m)
+                .frame(height: 36)
+            }
+        }
+    }
+
     private var header: some View {
         HStack(spacing: TouchTokens.Space.s) {
             Button { intents.open(app.app) } label: {
@@ -62,10 +85,10 @@ struct AppCard: View {
                     VStack(alignment: .leading, spacing: TouchTokens.Space.xs) {
                         HStack(spacing: TouchTokens.Space.s) {
                             Text(app.app.name).font(TouchTokens.Font.headline.font).lineLimit(1)
-                            // 支持的 Agent 应用：名字后面挂状态（在干活转圈 / 已结束圆点）
-                            if let activity { AgentStatusMark(activity: activity) }
+                            // 有会话行时状态挂在各条会话上；只有一条没名字时才挂在 App 名后面
+                            if sessions.isEmpty, let activity { AgentStatusMark(activity: activity) }
                         }
-                        Text(subtitle)
+                        Text(sessions.isEmpty ? subtitle : app.windowSummary)
                             .font(TouchTokens.Font.body.font)
                             .foregroundStyle(askingQuit ? .red : .secondary)
                             .lineLimit(1)

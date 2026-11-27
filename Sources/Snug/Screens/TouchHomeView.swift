@@ -272,6 +272,7 @@ struct TouchHomeView: View {
         return AppCard(app: app, panel: panel, onScreen: OnScreen(config), favorited: state.config.favorites.contains(bundleID),
                        sessionTitle: sessionActivity.sessionTitle(bundleID),
                        activity: sessionActivity.activity(bundleID),
+                       sessions: sessionActivity.sessions[bundleID] ?? [],
                        confirming: $confirming, icon: catalog.icon(for: app.app), intents: intents)
     }
 

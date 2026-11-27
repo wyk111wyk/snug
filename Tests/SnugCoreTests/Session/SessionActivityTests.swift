@@ -6,74 +6,70 @@ import Testing
 struct SessionActivityTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    @Test("刚有活动算在干活；安静一会儿算已完成；太久就不标了；读不到算不知道")
+    /// 只有时间的简写（busy 不说、没查看记录、查不到新消息数）
+    private func state(_ last: Date?) -> SessionActivity {
+        SessionActivityRule.state(busy: nil, lastActivity: last, lastViewed: nil, now: now)
+    }
+
+    @Test("只说时间的时候：刚有活动算在干活；安静一会儿算已结束；太久就不标了；读不到算不知道")
     func states() {
-        #expect(SessionActivityRule.state(lastActivity: nil, now: now) == .unknown)
-        #expect(SessionActivityRule.state(lastActivity: now, now: now) == .working)
-        #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(-1), now: now) == .working)
+        #expect(state(nil) == .unknown)
+        #expect(state(now) == .working)
+        #expect(state(now.addingTimeInterval(-1)) == .working)
         // 边界：正好等于窗口算在内
-        #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(-SessionActivityRule.workingWindow), now: now) == .working)
-        #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(-SessionActivityRule.workingWindow - 1), now: now) == .done)
-        #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(-SessionActivityRule.doneWindow), now: now) == .done)
-        #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(-SessionActivityRule.doneWindow - 1), now: now) == .unknown)
+        #expect(state(now.addingTimeInterval(-SessionActivityRule.workingWindow)) == .working)
+        #expect(state(now.addingTimeInterval(-SessionActivityRule.workingWindow - 1)) == .done)
+        #expect(state(now.addingTimeInterval(-SessionActivityRule.doneWindow)) == .done)
+        #expect(state(now.addingTimeInterval(-SessionActivityRule.doneWindow - 1)) == .unknown)
         // 时间戳比现在还晚（两边时钟差一点）当作刚有动静，不判成不知道
-        #expect(SessionActivityRule.state(lastActivity: now.addingTimeInterval(5), now: now) == .working)
+        #expect(state(now.addingTimeInterval(5)) == .working)
     }
 
-    @Test("客户端自己说在忙就以它为准：忙=进行中（不看时间戳）；闲且没看过=已完成、看过了就不标")
-    func busyWins() {
-        #expect(SessionActivityRule.state(busy: true, lastActivity: nil, lastViewed: nil, now: now) == .working)
-        // 忙的时候不看时间戳：等模型时长时间没有输出，它说在忙就是在忙
-        #expect(SessionActivityRule.state(busy: true, lastActivity: now.addingTimeInterval(-3600), lastViewed: nil, now: now) == .working)
-        #expect(SessionActivityRule.state(busy: false, lastActivity: now.addingTimeInterval(-1), lastViewed: nil, now: now) == .done)
-        #expect(SessionActivityRule.state(busy: false, lastActivity: now.addingTimeInterval(-SessionActivityRule.doneWindow), lastViewed: nil, now: now) == .done)
-        #expect(SessionActivityRule.state(busy: false, lastActivity: now.addingTimeInterval(-SessionActivityRule.doneWindow - 1), lastViewed: nil, now: now) == .unknown)
-        #expect(SessionActivityRule.state(busy: false, lastActivity: nil, lastViewed: nil, now: now) == .unknown)
-        // 没说自己忙不忙：退回按时间戳判
-        #expect(SessionActivityRule.state(busy: nil, lastActivity: now, lastViewed: nil, now: now) == .working)
-        #expect(SessionActivityRule.state(busy: nil, lastActivity: now.addingTimeInterval(-60), lastViewed: nil, now: now) == .done)
-        #expect(SessionActivityRule.state(busy: nil, lastActivity: nil, lastViewed: nil, now: now) == .unknown)
+    @Test("客户端说在忙就以它为准，但要再核一层「还在产出吗」：久无新消息又没在流式生成，按结束算（排除空 finish 残留）")
+    func busyNeedsFreshOutput() {
+        let quiet = now.addingTimeInterval(-300)
+        // 说在忙、但 5 分钟没有新消息、近 2 分钟也没产出：多半是生成到一半中断的残留
+        #expect(SessionActivityRule.state(busy: true, lastActivity: quiet, lastViewed: nil, freshMessages: 0, now: now) == .done)
+        // 说在忙、还在产出：在干活
+        #expect(SessionActivityRule.state(busy: true, lastActivity: quiet, lastViewed: nil, freshMessages: 3, now: now) == .working)
+        // 说在忙、安静不到 2 分钟：再等等，别急着判结束
+        #expect(SessionActivityRule.state(busy: true, lastActivity: now.addingTimeInterval(-30), lastViewed: nil,
+                                          freshMessages: 0, now: now) == .working)
+        // 空 finish 残留但进程还在、刚动过：在干活
+        #expect(SessionActivityRule.state(busy: true, lastActivity: now, lastViewed: nil, now: now) == .working)
     }
 
-    @Test("看过就清掉标记：最后查看时刻不早于这一轮的活动，就当没完成过（空闲），不再显示已完成")
+    @Test("看过了就收起：最后查看时刻不早于这一轮活动，就不再显示（会话本身不丢，App 里还在）")
     func viewedClearsMark() {
         let last = now.addingTimeInterval(-60)
-        // 没看过：已完成
         #expect(SessionActivityRule.state(busy: false, lastActivity: last, lastViewed: nil, now: now) == .done)
-        // 查看发生在活动之前（上一轮的查看）：还没看这一轮 → 仍算已完成
+        // 查看发生在上一轮：还没看这一轮 → 仍算已结束
         #expect(SessionActivityRule.state(busy: false, lastActivity: last, lastViewed: last.addingTimeInterval(-10), now: now) == .done)
-        // 查看就在这一轮之后（同一时刻或更晚）：看过了 → 空闲，不标
+        // 看过这一轮了 → 收起
         #expect(SessionActivityRule.state(busy: false, lastActivity: last, lastViewed: last, now: now) == .unknown)
         #expect(SessionActivityRule.state(busy: false, lastActivity: last, lastViewed: now, now: now) == .unknown)
-        // 有的客户端自己没有查看时刻（nil，见 ZCode）：当作没看过，照常标已完成
+        // 客户端没有查看记录（ZCode）：当作没看过，照常标，等 doneWindow 收
         #expect(SessionActivityRule.state(busy: nil, lastActivity: last, lastViewed: nil, now: now) == .done)
-        #expect(SessionActivityRule.state(busy: nil, lastActivity: last, lastViewed: last, now: now) == .unknown)
     }
-
 
     @Test("进程不在就一律不标：客户端崩了、被强退时库里会留着「还没结束」，只看库会一直显示在干活")
     func processGoneNeverMarks() {
-        let last = now.addingTimeInterval(-1)
-        // 库里说在忙、但进程不在：不标
-        #expect(SessionActivityRule.state(reading: SessionReading(running: false, busy: true, lastActivity: now), now: now) == .unknown)
-        // 库里说完成了、但进程不在：也不标（那个「已完成」可能早就过期了）
-        #expect(SessionActivityRule.state(reading: SessionReading(running: false, busy: false, lastActivity: last), now: now) == .unknown)
-        // 进程在：照常判定
-        #expect(SessionActivityRule.state(reading: SessionReading(running: true, busy: true, lastActivity: now), now: now) == .working)
-        #expect(SessionActivityRule.state(reading: SessionReading(running: true, busy: false, lastActivity: last), now: now) == .done)
+        let working = SessionEntry(title: "a", activity: .working)
+        let done = SessionEntry(title: "b", activity: .done)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: false, sessions: [working, done]), now: now) == .unknown)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: true, sessions: [working, done]), now: now) == .working)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: true, sessions: [done]), now: now) == .done)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: true, sessions: []), now: now) == .unknown)
     }
 
-    @Test("数据源表：每家一个 bundleID、不重复；路径、查询都写着")
+    @Test("数据源表：每家一个 bundleID、不重复；路径、查询都写着；每家都有进程关键词")
     func sources() {
         let all = SessionSources.all
         #expect(!all.isEmpty)
         #expect(Set(all.map(\.bundleID)).count == all.count)
-        // 每家都得有进程关键词：进程不在就不能标（否则客户端崩了会一直显示在干活）
         for source in all {
             #expect(!source.processKeywords.isEmpty, "\(source.bundleID) 缺 processKeywords")
             #expect(source.processKeywords.allSatisfy { $0 == $0.lowercased() }, "\(source.bundleID) 的关键词要小写")
-        }
-        for source in all {
             switch source.kind {
             case .sqlite(let path, let query):
                 #expect(path.hasPrefix("~/"))

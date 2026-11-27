@@ -407,7 +407,10 @@ final class ScreenWindows {
         var rows: [FavoriteSwitcher.Row] = []
         let placed = state.panel(id).placed?.window
         if let placed {
-            rows.append(FavoriteSwitcher.Row(app: catalog.app(of: placed).app, window: placed.displayTitle, active: true))
+            // 放在屏上的那个：它自己就是一个窗口；若是支持的 Agent 应用，把它的各条会话也列出来
+            let app = catalog.app(of: placed).app
+            rows.append(FavoriteSwitcher.Row(app: app, window: placed.displayTitle, active: true,
+                                             sessions: sessionActivity.sessions[app.bundleID] ?? []))
         }
         let rest = catalog.installed
             .filter { state.config.favorites.contains($0.app.bundleID) && $0.app.bundleID != placed?.bundleID }
@@ -415,7 +418,8 @@ final class ScreenWindows {
             .map { item -> FavoriteSwitcher.Row in
                 let running = catalog.running(item.app)
                 let window = running?.windows.first?.displayTitle
-                return FavoriteSwitcher.Row(app: item.app, window: window ?? (running == nil ? "未运行" : "无窗口"), active: false)
+                return FavoriteSwitcher.Row(app: item.app, window: window ?? (running == nil ? "未运行" : "无窗口"), active: false,
+                                            sessions: sessionActivity.sessions[item.app.bundleID] ?? [])
             }
         return rows + rest
     }
