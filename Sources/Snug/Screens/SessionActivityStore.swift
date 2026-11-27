@@ -58,9 +58,7 @@ final class SessionActivityStore {
                     next[source.bundleID] = previous
                     continue
                 }
-                next[source.bundleID] = SessionActivityRule.state(busy: reading.busy, lastActivity: reading.lastActivity,
-                                                                  lastViewed: reading.lastViewed, now: now,
-                                                                  idleIsUnfinished: source.idleIsUnfinished)
+                next[source.bundleID] = SessionActivityRule.state(reading: reading, idleIsUnfinished: source.idleIsUnfinished, now: now)
             }
             await MainActor.run { self?.states = next }
         }
