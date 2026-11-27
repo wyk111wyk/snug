@@ -243,13 +243,19 @@ struct TouchHomeView: View {
             } else if others.isEmpty {
                 if panel.placed == nil { EmptyState(symbol: "square.grid.2x2", text: "没有正在运行的 App") }
             } else {
-                // 收藏的排到最上面；没有收藏时不分组，和以前一样
-                let (pinned, rest) = AppList.splitFavorites(others, favorites: state.config.favorites)
+                // 顺序：能显示会话和状态的 Agent 应用 → 收藏的 → 其余（最近用过）。
+                // 前两组各自保持原来的顺序，同一组里不重排
+                let agents = others.filter { sessionActivity.supports($0.app.bundleID) }
+                let rest = others.filter { !sessionActivity.supports($0.app.bundleID) }
+                let (pinned, plain) = AppList.splitFavorites(rest, favorites: state.config.favorites)
+                if !agents.isEmpty { TitledSection("Agent") { appCards(agents) } }
                 if pinned.isEmpty {
-                    if panel.placed != nil { TitledSection("其他 App") { appCards(others) } } else { appCards(others) }
+                    if !plain.isEmpty {
+                        if panel.placed != nil || !agents.isEmpty { TitledSection("其他 App") { appCards(plain) } } else { appCards(plain) }
+                    }
                 } else {
                     TitledSection("收藏") { appCards(pinned) }
-                    if !rest.isEmpty { TitledSection("其他 App") { appCards(rest) } }
+                    if !plain.isEmpty { TitledSection("其他 App") { appCards(plain) } }
                 }
             }
         }
@@ -262,9 +268,11 @@ struct TouchHomeView: View {
     }
 
     private func appCard(_ app: RunningApp) -> some View {
-        AppCard(app: app, panel: panel, onScreen: OnScreen(config), favorited: state.config.favorites.contains(app.app.bundleID),
-                sessionTitle: sessionActivity.sessionTitle(app.app.bundleID),
-                confirming: $confirming, icon: catalog.icon(for: app.app), intents: intents)
+        let bundleID = app.app.bundleID
+        return AppCard(app: app, panel: panel, onScreen: OnScreen(config), favorited: state.config.favorites.contains(bundleID),
+                       sessionTitle: sessionActivity.sessionTitle(bundleID),
+                       activity: sessionActivity.activity(bundleID),
+                       confirming: $confirming, icon: catalog.icon(for: app.app), intents: intents)
     }
 
     // MARK: 横屏两栏

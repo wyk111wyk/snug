@@ -73,4 +73,7 @@ final class SessionActivityStore {
 
     /// 这个 App 最近一轮的会话名（读不到就是 nil）
     func sessionTitle(_ bundleID: String) -> String? { sessionTitles[bundleID] }
+
+    /// 这个 App 是不是支持的 Agent 应用（有会话源、能读会话名和状态）
+    func supports(_ bundleID: String) -> Bool { sources.contains { $0.bundleID == bundleID } }
 }

@@ -333,17 +333,9 @@ struct FavoriteSwitcher: View {
             .background(TouchTokens.Color.card, in: Capsule())
     }
 
-    /// 行尾的状态：在干活一个自己画的转圈弧（不用 ProgressView，免得和「正在切换」的转圈撞）、
-    /// 已结束一个圆点、不知道留空（都占同样大小，行高不跳）
-    @ViewBuilder private func activityMark(_ state: SessionActivity) -> some View {
-        switch state {
-        case .working:
-            WorkingMark().frame(width: 22, height: 22)
-        case .done:
-            Circle().fill(TouchTokens.Color.tint).frame(width: 10, height: 10).frame(width: 22, height: 22)
-        case .unknown:
-            Color.clear.frame(width: 22, height: 22)
-        }
+    /// 行尾的状态标记（和主页卡片共用）
+    private func activityMark(_ state: SessionActivity) -> some View {
+        AgentStatusMark(activity: state)
     }
 }
 
@@ -359,6 +351,22 @@ private struct WorkingMark: View {
             .rotationEffect(.degrees(spinning ? 360 : 0))
             .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: spinning)
             .onAppear { spinning = true }
+    }
+}
+
+/// Agent 状态的小标记：在干活是转圈弧、已结束是圆点、不知道留空。主页卡片和切换列表共用
+struct AgentStatusMark: View {
+    let activity: SessionActivity
+
+    var body: some View {
+        switch activity {
+        case .working:
+            WorkingMark().frame(width: 22, height: 22)
+        case .done:
+            Circle().fill(TouchTokens.Color.tint).frame(width: 10, height: 10).frame(width: 22, height: 22)
+        case .unknown:
+            Color.clear.frame(width: 22, height: 22)
+        }
     }
 }
 

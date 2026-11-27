@@ -26,6 +26,8 @@ struct AppCard: View {
     /// 客户端自己记的会话名（如 ZCode 的「新闻网站优化」）：有就盖过窗口标题，
     /// 因为有些客户端（OpenCode、Antigravity）把会话名写进了窗口标题、有些（ZCode）不写
     var sessionTitle: String? = nil
+    /// 这个 App 此刻的 Agent 状态（在干活 / 已结束 / 不知道）。nil = 不是支持的 Agent 应用
+    var activity: SessionActivity? = nil
     @Binding var confirming: TouchHomeView.Confirm?
     let icon: NSImage
     let intents: any TouchIntents
@@ -55,7 +57,22 @@ struct AppCard: View {
     private var header: some View {
         HStack(spacing: TouchTokens.Space.s) {
             Button { intents.open(app.app) } label: {
-                AppRowLabel(icon: icon, title: app.app.name, subtitle: subtitle, subtitleColor: askingQuit ? .red : .secondary)
+                HStack(spacing: TouchTokens.Space.l) {
+                    AppIcon(image: icon, size: TouchTokens.Size.listIcon)
+                    VStack(alignment: .leading, spacing: TouchTokens.Space.xs) {
+                        HStack(spacing: TouchTokens.Space.s) {
+                            Text(app.app.name).font(TouchTokens.Font.headline.font).lineLimit(1)
+                            // 支持的 Agent 应用：名字后面挂状态（在干活转圈 / 已结束圆点）
+                            if let activity { AgentStatusMark(activity: activity) }
+                        }
+                        Text(subtitle)
+                            .font(TouchTokens.Font.body.font)
+                            .foregroundStyle(askingQuit ? .red : .secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: TouchTokens.Space.s)
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle())
             .disabled(quitting)
