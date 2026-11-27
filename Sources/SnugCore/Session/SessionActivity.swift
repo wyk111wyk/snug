@@ -15,18 +15,14 @@ public struct SessionSource: Equatable, Sendable {
     /// 这个来源对应哪个 App（按 bundleID 认，和资源库里的 App 对上）
     public let bundleID: String
     public let kind: Kind
-    /// 它给的 busy=false 是不是「一轮已经跑完了」（能据此标已完成）。
-    /// ZCode 这种 busy 是「当前消息流没结束」，false 只说明那一条讲完了、可能要接着跑工具，不能算干完
-    public let idleIsUnfinished: Bool
     /// 客户端进程名里带这些词之一（小写、包含匹配）就说明它还活着。**进程不在就一律不标**：
     /// 客户端崩了、被强退时库里会留着最后那条「还没结束」的消息，只看库就会一直显示在干活。
     /// Token Monitor 对 Claude Code 也是这么做的（用它写的 pid 核对进程启动时间）——从不只信文件
     public let processKeywords: [String]
 
-    public init(bundleID: String, kind: Kind, idleIsUnfinished: Bool = false, processKeywords: [String]) {
+    public init(bundleID: String, kind: Kind, processKeywords: [String]) {
         self.bundleID = bundleID
         self.kind = kind
-        self.idleIsUnfinished = idleIsUnfinished
         self.processKeywords = processKeywords
     }
 }
@@ -72,18 +68,15 @@ public enum SessionActivityRule {
     public static let doneWindow: TimeInterval = 10 * 60
 
     /// 客户端进程不在：一律不标（库里可能留着「还没结束」的残留，只看库会一直显示在干活）
-    public static func state(reading: SessionReading, idleIsUnfinished: Bool, now: Date) -> SessionActivity {
+    public static func state(reading: SessionReading, now: Date) -> SessionActivity {
         guard reading.running else { return .unknown }
-        return state(busy: reading.busy, lastActivity: reading.lastActivity, lastViewed: reading.lastViewed,
-                     now: now, idleIsUnfinished: idleIsUnfinished)
+        return state(busy: reading.busy, lastActivity: reading.lastActivity, lastViewed: reading.lastViewed, now: now)
     }
 
     /// 客户端自己说了在忙 / 空闲时以它为准：忙 = 在干活；闲且这一轮确实完了、还没看过 = 已完成；否则不标
-    public static func state(busy: Bool?, lastActivity: Date?, lastViewed: Date?, now: Date, idleIsUnfinished: Bool = false) -> SessionActivity {
+    public static func state(busy: Bool?, lastActivity: Date?, lastViewed: Date?, now: Date) -> SessionActivity {
         guard let busy else { return state(lastActivity: lastActivity, lastViewed: lastViewed, now: now) }
         if busy { return .working }
-        // 这里的 false 只说明「那一条讲完了」，不代表这一轮干完（可能接着跑工具）：只标在干活和不认识
-        guard !idleIsUnfinished else { return .unknown }
         guard isUnseen(lastActivity: lastActivity, lastViewed: lastViewed, now: now) else { return .unknown }
         return .done
     }
@@ -121,20 +114,34 @@ public enum SessionSources {
                 FROM session_v2 WHERE time_archived IS NULL
                 ORDER BY 2 DESC LIMIT 1
                 """), processKeywords: ["opencode"]),
-        // ZCode：两轮之间会安静、且没有「在忙」字段，但最新一条 assistant 消息的 finish 能说话——
-        // 流式生成时为 NULL、等工具为 tool-calls，真正干完是 stop / completed（实测 11-27）。
-        // 同一个会话 id 去 session 表取标题（session 名的唯一来源）
+        // ZCode：和 OpenCode 同一套表（Token Monitor 也用同一份代码处理这两家）。判「这一轮还在跑」靠三件事：
+        //   最新一条 user 消息（用户发了新指令 → 在跑）、最新一条 assistant 消息的 finish、
+        //   有没有更新的 user 消息把结束状态重新打开。
+        // finish：NULL=还在流式生成、tool-calls=暂停去跑工具（都算在跑）；stop/completed/length=这一轮结束
         SessionSource(bundleID: "dev.zcode.app", kind: .sqlite(
             path: "~/.zcode/cli/db/db.sqlite",
             query: """
-                SELECT CASE WHEN lower(coalesce(json_extract(m.data, '$.finish'), '')) IN ('stop', 'completed', 'length')
-                            THEN 0 ELSE 1 END,
-                       m.time_updated,
+                WITH m AS (
+                    SELECT json_extract(data, '$.role') AS role,
+                           lower(coalesce(json_extract(data, '$.finish'), '')) AS finish,
+                           time_updated, session_id
+                    FROM message
+                    WHERE json_valid(data) AND json_extract(data, '$.role') IN ('assistant', 'user')
+                    ORDER BY time_updated DESC LIMIT 40
+                ),
+                -- 最新一条 assistant 的 finish 决定这一轮是否结束
+                a AS (SELECT finish, time_updated, session_id FROM m WHERE role = 'assistant' ORDER BY time_updated DESC LIMIT 1),
+                -- 它之后又有一条 user 消息，说明用户已经发了新指令、新一轮开始
+                u AS (SELECT count(*) AS newer FROM m, a WHERE m.role = 'user' AND m.time_updated > a.time_updated)
+                SELECT CASE
+                         WHEN a.finish IN ('stop', 'completed', 'length') AND u.newer = 0 THEN 0
+                         ELSE 1
+                       END,
+                       coalesce((SELECT time_updated FROM m WHERE role = 'user' ORDER BY time_updated DESC LIMIT 1), a.time_updated),
                        NULL,
-                       (SELECT s.title FROM session s WHERE s.id = m.session_id)
-                FROM message m WHERE json_extract(m.data, '$.role') = 'assistant'
-                ORDER BY m.time_updated DESC LIMIT 1
-                """), idleIsUnfinished: true, processKeywords: ["zcode"]),
+                       (SELECT s.title FROM session s WHERE s.id = a.session_id)
+                FROM a, u
+                """), processKeywords: ["zcode"]),
         // Codex：会话是日期目录下的 rollout-*.jsonl，取最新一个的修改时间。
         // 这台机器上没装 Codex 应用（CLI 跑在别的终端里时，窗口归那个终端 App，认不出是 Codex），
         // 所以这条暂时挂不到任何一行上；真在用 Codex 应用时，把 bundleID 改成它的就行

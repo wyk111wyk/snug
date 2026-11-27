@@ -50,31 +50,17 @@ struct SessionActivityTests {
         #expect(SessionActivityRule.state(busy: nil, lastActivity: last, lastViewed: last, now: now) == .unknown)
     }
 
-    @Test("busy=false 只表示「这一条讲完了」的来源（ZCode）：不标已完成，只标在干活或不认识")
-    func idleUnfinishedSource() {
-        let last = now.addingTimeInterval(-30)
-        // 消息讲完了、可能要接着跑工具：既不能说在干活，也不能说干完了
-        #expect(SessionActivityRule.state(busy: false, lastActivity: last, lastViewed: nil, now: now,
-                                          idleIsUnfinished: true) == .unknown)
-        // 忙的时候照常标在干活
-        #expect(SessionActivityRule.state(busy: true, lastActivity: last, lastViewed: nil, now: now,
-                                          idleIsUnfinished: true) == .working)
-    }
 
     @Test("进程不在就一律不标：客户端崩了、被强退时库里会留着「还没结束」，只看库会一直显示在干活")
     func processGoneNeverMarks() {
         let last = now.addingTimeInterval(-1)
         // 库里说在忙、但进程不在：不标
-        #expect(SessionActivityRule.state(reading: SessionReading(running: false, busy: true, lastActivity: now),
-                                          idleIsUnfinished: false, now: now) == .unknown)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: false, busy: true, lastActivity: now), now: now) == .unknown)
         // 库里说完成了、但进程不在：也不标（那个「已完成」可能早就过期了）
-        #expect(SessionActivityRule.state(reading: SessionReading(running: false, busy: false, lastActivity: last),
-                                          idleIsUnfinished: false, now: now) == .unknown)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: false, busy: false, lastActivity: last), now: now) == .unknown)
         // 进程在：照常判定
-        #expect(SessionActivityRule.state(reading: SessionReading(running: true, busy: true, lastActivity: now),
-                                          idleIsUnfinished: false, now: now) == .working)
-        #expect(SessionActivityRule.state(reading: SessionReading(running: true, busy: false, lastActivity: last),
-                                          idleIsUnfinished: false, now: now) == .done)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: true, busy: true, lastActivity: now), now: now) == .working)
+        #expect(SessionActivityRule.state(reading: SessionReading(running: true, busy: false, lastActivity: last), now: now) == .done)
     }
 
     @Test("数据源表：每家一个 bundleID、不重复；路径、查询都写着")
@@ -82,8 +68,6 @@ struct SessionActivityTests {
         let all = SessionSources.all
         #expect(!all.isEmpty)
         #expect(Set(all.map(\.bundleID)).count == all.count)
-        // 只有「给的 busy 是真在跑一轮」的来源才允许据此标已完成
-        #expect(all.filter(\.idleIsUnfinished).map(\.bundleID) == ["dev.zcode.app"])
         // 每家都得有进程关键词：进程不在就不能标（否则客户端崩了会一直显示在干活）
         for source in all {
             #expect(!source.processKeywords.isEmpty, "\(source.bundleID) 缺 processKeywords")
@@ -93,7 +77,7 @@ struct SessionActivityTests {
             switch source.kind {
             case .sqlite(let path, let query):
                 #expect(path.hasPrefix("~/"))
-                #expect(query.lowercased().hasPrefix("select"))
+                #expect(query.lowercased().hasPrefix("select") || query.lowercased().hasPrefix("with"))
             case .newestFile(let root, let prefix, let suffix, let depth):
                 #expect(root.hasPrefix("~/"))
                 #expect(!prefix.isEmpty && !suffix.isEmpty && depth > 0)

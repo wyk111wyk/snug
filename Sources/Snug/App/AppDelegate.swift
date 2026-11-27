@@ -85,14 +85,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startMonitoring() {
         controller.start()
         controller.refreshLaunchAtLogin()
-        let updated = controller.recordVersion()
+        // 记下运行版本（只为了「刚换了版本」时可以知道），但不再因为它主动弹「关于」：
+        // 自己编译装上时版本会一直变，每装一次就弹一个窗口很打扰；版本号在设置「通用」页和「关于」里都看得到
+        _ = controller.recordVersion()
         if !controller.state.config.welcomed {
             if !controller.state.launchAtLogin { controller.setLaunchAtLogin(true) }
             router.showFirstWelcome()
         } else if !controller.state.accessibilityTrusted {
             router.openWelcome()
-        } else if updated {
-            router.openAbout()
         } else if !launchedAtLogin {
             router.openSettings()
         }
