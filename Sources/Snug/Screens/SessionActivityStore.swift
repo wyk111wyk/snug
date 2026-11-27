@@ -24,7 +24,7 @@ final class SessionActivityStore {
 
     func activity(_ bundleID: String) -> SessionActivity { states[bundleID] ?? .unknown }
 
-    /// 切换条露出来：开始轮询（先立刻读一次）
+    /// 切换条露出来：开始轮询。先立刻读一次，读不到的先按上次的值显示（不清空，免得第一眼闪成「不知道」）
     func start() {
         guard poller == nil else { return }
         read()
@@ -37,11 +37,11 @@ final class SessionActivityStore {
         }
     }
 
-    /// 收起：停掉轮询、清空状态（下次露出来重新读）
+    /// 收起：停掉轮询。状态留着（下次露出来先用它显示第一帧，读回来再改），
+    /// 只有远程结束、屏幕拆掉时才随着 store 一起没了
     func stop() {
         poller?.cancel()
         poller = nil
-        states = [:]
     }
 
     private func read() {
@@ -52,8 +52,15 @@ final class SessionActivityStore {
             var next: [String: SessionActivity] = [:]
             for source in sources {
                 let reading = reader.reading(source)
+                // 这一次什么都没读到（库被锁、文件没在写）：保留上一次的结果，不要冲成「不知道」
+                if reading.busy == nil, reading.lastActivity == nil,
+                   let previous = await self?.states[source.bundleID] {
+                    next[source.bundleID] = previous
+                    continue
+                }
                 next[source.bundleID] = SessionActivityRule.state(busy: reading.busy, lastActivity: reading.lastActivity,
-                                                                  lastViewed: reading.lastViewed, now: now)
+                                                                  lastViewed: reading.lastViewed, now: now,
+                                                                  idleIsUnfinished: source.idleIsUnfinished)
             }
             await MainActor.run { self?.states = next }
         }

@@ -50,11 +50,24 @@ struct SessionActivityTests {
         #expect(SessionActivityRule.state(busy: nil, lastActivity: last, lastViewed: last, now: now) == .unknown)
     }
 
+    @Test("busy=false 只表示「这一条讲完了」的来源（ZCode）：不标已完成，只标在干活或不认识")
+    func idleUnfinishedSource() {
+        let last = now.addingTimeInterval(-30)
+        // 消息讲完了、可能要接着跑工具：既不能说在干活，也不能说干完了
+        #expect(SessionActivityRule.state(busy: false, lastActivity: last, lastViewed: nil, now: now,
+                                          idleIsUnfinished: true) == .unknown)
+        // 忙的时候照常标在干活
+        #expect(SessionActivityRule.state(busy: true, lastActivity: last, lastViewed: nil, now: now,
+                                          idleIsUnfinished: true) == .working)
+    }
+
     @Test("数据源表：每家一个 bundleID、不重复；路径、查询都写着")
     func sources() {
         let all = SessionSources.all
         #expect(!all.isEmpty)
         #expect(Set(all.map(\.bundleID)).count == all.count)
+        // 只有「给的 busy 是真在跑一轮」的来源才允许据此标已完成
+        #expect(all.filter(\.idleIsUnfinished).map(\.bundleID) == ["dev.zcode.app"])
         for source in all {
             switch source.kind {
             case .sqlite(let path, let query):

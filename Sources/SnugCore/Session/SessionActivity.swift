@@ -16,10 +16,14 @@ public struct SessionSource: Equatable, Sendable {
     /// 这个来源对应哪个 App（按 bundleID 认，和资源库里的 App 对上）
     public let bundleID: String
     public let kind: Kind
+    /// 它给的 busy=false 是不是「一轮已经跑完了」（能据此标已完成）。
+    /// ZCode 这种 busy 是「当前消息流没结束」，false 只说明那一条讲完了、可能要接着跑工具，不能算干完
+    public let idleIsUnfinished: Bool
 
-    public init(bundleID: String, kind: Kind) {
+    public init(bundleID: String, kind: Kind, idleIsUnfinished: Bool = false) {
         self.bundleID = bundleID
         self.kind = kind
+        self.idleIsUnfinished = idleIsUnfinished
     }
 }
 
@@ -56,10 +60,12 @@ public enum SessionActivityRule {
     /// 安静超过这么久就不标了（早干完了，别一直挂着）
     public static let doneWindow: TimeInterval = 10 * 60
 
-    /// 客户端自己说了在忙 / 空闲时以它为准：忙 = 在干活；闲且还没看过 = 已完成；看过了、太久没动静、不认识都不标
-    public static func state(busy: Bool?, lastActivity: Date?, lastViewed: Date?, now: Date) -> SessionActivity {
+    /// 客户端自己说了在忙 / 空闲时以它为准：忙 = 在干活；闲且这一轮确实完了、还没看过 = 已完成；否则不标
+    public static func state(busy: Bool?, lastActivity: Date?, lastViewed: Date?, now: Date, idleIsUnfinished: Bool = false) -> SessionActivity {
         guard let busy else { return state(lastActivity: lastActivity, lastViewed: lastViewed, now: now) }
         if busy { return .working }
+        // 这里的 false 只说明「那一条讲完了」，不代表这一轮干完（可能接着跑工具）：只标在干活和不认识
+        guard !idleIsUnfinished else { return .unknown }
         guard isUnseen(lastActivity: lastActivity, lastViewed: lastViewed, now: now) else { return .unknown }
         return .done
     }
@@ -97,11 +103,18 @@ public enum SessionSources {
                 FROM session_v2 WHERE time_archived IS NULL
                 ORDER BY 2 DESC LIMIT 1
                 """)),
-        // ZCode：没有「在忙」字段（turn_usage 只在结束时落一行），用消息表的 time_updated——
-        // 实测它是实时的（正在跑时就是当前时刻）；注意别用 session_entry，那是 v1 老表、不再更新
+        // ZCode：两轮之间会安静、且没有「在忙」字段，但最新一条 assistant 消息的 finish 能说话——
+        // 流式生成时为 NULL、等工具为 tool-calls，真正干完是 stop / completed（实测 11-27）
         SessionSource(bundleID: "dev.zcode.app", kind: .sqlite(
             path: "~/.zcode/cli/db/db.sqlite",
-            query: "SELECT NULL, max(time_updated) FROM message")),
+            query: """
+                SELECT CASE WHEN lower(coalesce(json_extract(data, '$.finish'), '')) IN ('stop', 'completed', 'length')
+                            THEN 0 ELSE 1 END,
+                       time_updated,
+                       NULL
+                FROM message WHERE json_extract(data, '$.role') = 'assistant'
+                ORDER BY time_updated DESC LIMIT 1
+                """), idleIsUnfinished: true),
         // Codex：会话是日期目录下的 rollout-*.jsonl，取最新一个的修改时间。
         // 这台机器上没装 Codex 应用（CLI 跑在别的终端里时，窗口归那个终端 App，认不出是 Codex），
         // 所以这条暂时挂不到任何一行上；真在用 Codex 应用时，把 bundleID 改成它的就行

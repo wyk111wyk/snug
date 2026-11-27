@@ -365,6 +365,8 @@ final class ScreenWindows {
         guard !rows.isEmpty else { return }
         hideFavorites()
         let scale = ScreenFit.scale(screen: screen.frame.size)
+        // 先把状态读起来（读不到的先按上次的值），再建视图——这样第一帧就有状态，不会先闪一下「不知道」
+        sessionActivity.start()
         // 背后那层：点它就关
         let dismiss = DismissView()
         dismiss.onTap = { [weak self] in self?.hideFavorites() }
@@ -378,7 +380,6 @@ final class ScreenWindows {
             pick: { [weak self] in self?.pickFavorite($0) },
             close: { [weak self] in self?.hideFavorites() },
             activity: sessionActivity))
-        sessionActivity.start()
         let size = host.fittingSize
         let visible = screen.visibleFrame
         let anchor = overlayAnchorFrame(on: screen)
