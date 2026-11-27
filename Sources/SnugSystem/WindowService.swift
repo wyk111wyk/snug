@@ -26,12 +26,21 @@ public final class WindowService: WindowControl {
 
     // MARK: WindowControl
 
-    // 窗口服务器知道每个窗口（别的桌面空间、最小化、藏起来的也在），不用等 App 响应，也不要权限
+    // 窗口服务器知道每个窗口（别的桌面空间、最小化、藏起来、App 被隐藏、正在进出全屏的也在），不用等 App 响应，也不要权限；
+    // 只有窗口真没了（关掉、App 重建了窗口、App 退出）才查不到。显示着没有看 isShown。
+    // 窗口服务器没回答时两个都按「照旧」答：在、显示着，不凭没有的答案销账、回资源库
 
-    public func exists(_ window: WindowKey) async -> Bool { Self.serverInfo(window) != nil }
+    public func exists(_ window: WindowKey) async -> Bool {
+        if case .absent = Self.serverInfo(window) { return false }
+        return true
+    }
 
     public func isShown(_ window: WindowKey) async -> Bool {
-        (Self.serverInfo(window)?[kCGWindowIsOnscreen as String] as? Bool) == true
+        switch Self.serverInfo(window) {
+        case .present(let info): (info[kCGWindowIsOnscreen as String] as? Bool) == true
+        case .absent: false
+        case .noAnswer: true
+        }
     }
 
     public func look(_ window: WindowKey) async -> WindowLook? {
@@ -244,11 +253,31 @@ public final class WindowService: WindowControl {
         return cached.windows
     }
 
-    /// 窗口服务器里这个窗口的信息；没有、或编号已经归了别的进程返回 nil
-    private static func serverInfo(_ window: WindowKey) -> [String: Any]? {
-        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], window.id) as? [[String: Any]])?.first,
-              (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.pid else { return nil }
-        return info
+    private enum ServerAnswer {
+        case present([String: Any])
+        /// 没有这个窗口，或编号已经归了别的进程
+        case absent
+        /// 窗口服务器没回答（不在图形会话里时返回 NULL，如切到了别的用户）
+        case noAnswer
+    }
+
+    /// 窗口服务器上次没回答：没回答、恢复各记一笔，不每次核对都记
+    private static let serverSilent = Locked(false)
+
+    /// 窗口服务器里这个窗口的信息。按编号要描述（FromArray），不用 CGWindowListCopyWindowInfo 的 optionIncludingWindow：
+    /// 后者只报此刻显示着的窗口，藏起来、最小化、App 被隐藏、进出全屏的那半秒都报「没有」，会把活着的窗口当成关了（#63，11-25 实测）
+    private static func serverInfo(_ window: WindowKey) -> ServerAnswer {
+        var ids: [UnsafeRawPointer?] = [UnsafeRawPointer(bitPattern: UInt(window.id))]
+        guard let array = CFArrayCreate(nil, &ids, 1, nil),
+              let list = CGWindowListCreateDescriptionFromArray(array) as? [[String: Any]] else {
+            if serverSilent.withLock({ defer { $0 = true }; return !$0 }) {
+                Log.warn("窗口服务器没回答窗口查询（可能切到了别的用户），先当窗口都还在、照旧显示着")
+            }
+            return .noAnswer
+        }
+        if serverSilent.withLock({ defer { $0 = false }; return $0 }) { Log.info("窗口服务器恢复回答窗口查询") }
+        guard let info = list.first, (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.pid else { return .absent }
+        return .present(info)
     }
 
     /// 等到条件成立，最多等 seconds 秒。App 卡住时每次读都要等满超时，所以按截止时间算，不按次数

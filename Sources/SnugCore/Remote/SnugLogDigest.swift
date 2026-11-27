@@ -32,7 +32,7 @@ public struct SnugLogDigest: Equatable, Sendable {
             guard let (date, message) = reader.split(line) else { continue }
             let detection = Self.detection(in: message)
             if let detection { owner = detection.remote }
-            guard date >= since else { continue }
+            guard date.timeIntervalSince(since) >= 0 else { continue }
             if let detection {
                 if detection.remote == remote { detections.append(Detection(date: date, evidence: detection.evidence)) }
             } else if owner == nil || owner == remote {
@@ -47,7 +47,7 @@ public struct SnugLogDigest: Equatable, Sendable {
         let reader = LineReader()
         var keep = false
         return lines.filter { line in
-            if let date = reader.split(line)?.date { keep = date >= since }
+            if let date = reader.split(line)?.date { keep = date.timeIntervalSince(since) >= 0 }
             return keep
         }
     }

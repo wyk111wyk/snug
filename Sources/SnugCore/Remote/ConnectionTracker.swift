@@ -76,7 +76,10 @@ public struct ConnectionTracker: Sendable {
 
     /// 每次连接事件都留下信号快照，排查误判时才知道是哪一路信号在变
     private func log(_ event: ConnectionEvent, _ remote: String, _ observation: RemoteObservation, now: Date) {
-        let quietLeft = quietUntil.flatMap { now <= $0 ? $0.timeIntervalSince(now) : nil }
+        let quietLeft = quietUntil.flatMap { until -> TimeInterval? in
+            let remaining = until.timeIntervalSince(now)
+            return remaining >= 0 ? remaining : nil
+        }
         Log.info(Self.logLine(event, remote: remote, evidence: observation.evidence,
                               sincePresent: lastPresentAt.map { now.timeIntervalSince($0) }, quietLeft: quietLeft))
     }

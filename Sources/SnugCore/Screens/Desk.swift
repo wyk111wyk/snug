@@ -90,6 +90,8 @@ public final class Desk {
     /// 放着的窗口在 Snug 之外没了以后，等它的 App 开出新窗口最多这么久，开出来就接着放上来
     /// （ChatGPT 冷启动约 3 秒后会换掉第一个窗口，实测 11-15）
     static let replaceWait: TimeInterval = 10
+    /// 放着的窗口没显示，隔这么久再看一次才算不在屏上：比进出全屏时窗口服务器报它没显示的那段长（实测最长 0.6 秒）
+    static let unshownConfirm: TimeInterval = 1
 
     let id: ScreenID
     var behavior: ScreenBehavior {
@@ -539,7 +541,7 @@ public final class Desk {
         state.notice = nil
     }
 
-    /// 按记录放回：缩回字号（窗口还在屏上、还是它 App 的当前窗口；缩完马上记账）→ 挪回原位 →
+    /// 按记录放回：缩回字号（窗口还在屏上、还是它 App 的当前窗口；缩完马上记账）→ 在屏上进了全屏的先退出 → 挪回原位 →
     /// 原来全屏的恢复全屏、原来最小化的再最小化。放回了就销账、窗口确实没了就转成留下的账，返回 nil；
     /// 窗口还在却缩不回、挪不动（App 没响应、没有权限）就留着记录（下次放窗口或下次启动再放），返回留下的这条
     @discardableResult
@@ -552,6 +554,9 @@ public final class Desk {
             record.zoom = 0
             write(record)
         }
+        // 在屏上被点成了全屏（手机上点了绿色按钮，电脑屏的资源库在全屏空间里也打得开）：全屏的窗口不吃挪动，
+        // 先退出全屏再放回，原来全屏的放回后再进
+        if await windows.look(record.window)?.fullScreen == true { await windows.setFullScreen(record.window, false) }
         let target = env.screens.currentFrame(record.original)
         guard let got = await windows.move(record.window, to: target) else {
             return await stuckOrGone(record, "挪不动")
@@ -617,7 +622,7 @@ public final class Desk {
         guard behavior.touch else { return await verifyBrought() }
         guard let p = placement else { return }
         guard await windows.exists(p.window.key) else {
-            Log.info("屏上的 \(p.window.label) 在 Snug 之外关了，回到 App 资源库")
+            Log.info("屏上的 \(p.window.label)（窗口 \(p.window.key.id)）在 Snug 之外关了，回到 App 资源库")
             placement = nil
             state.listVisible = true
             replaced = (p.window.key.pid, p.known.union([p.window.key]), timeline.now + Self.replaceWait)
@@ -626,6 +631,14 @@ public final class Desk {
             return
         }
         if !state.listVisible, await !windows.isShown(p.window.key) {
+            // 进出全屏的动画里窗口服务器有半秒报它没显示（11-25 实测 0.5～0.6 秒），这时屏上不是空桌面。
+            // 动画末尾那几十毫秒和 App 把窗口藏起来时读到的一模一样（同一个桌面空间、没排在屏上、辅助功能列表里没有），
+            // 一次读数分不清：隔过动画再看一次，还没显示才算不在屏上
+            await timeline.sleep(Self.unshownConfirm)
+            guard placement?.window.key == p.window.key, !state.listVisible else { return }
+            guard await !windows.isShown(p.window.key) else {
+                return Log.info("屏上的 \(p.window.label) 一时没显示（进出全屏时会这样），再看已经显示，不回资源库")
+            }
             Log.info("屏上的 \(p.window.label) 不在屏上了（最小化、隐藏或关成了隐藏），回到 App 资源库")
             state.listVisible = true
             await matchWidth()
@@ -657,7 +670,7 @@ public final class Desk {
         for key in brought.keys.sorted(by: Self.order) {
             guard let record = brought[key] else { continue }
             guard await windows.exists(key) else {
-                Log.info("电脑屏上的 \(record.label) 在 Snug 之外关了，不再记着原处")
+                Log.info("电脑屏上的 \(record.label)（窗口 \(key.id)）在 Snug 之外关了，不再记着原处")
                 release(key)
                 continue
             }

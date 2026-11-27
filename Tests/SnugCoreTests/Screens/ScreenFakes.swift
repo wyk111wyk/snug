@@ -259,6 +259,8 @@ final class FakeWindows: WindowControl {
     func vanish(_ key: WindowKey) { _ = state.withLock { $0.removeValue(forKey: key) } }
     /// 像飞书、微信点关闭那样：窗口藏起来，还在
     func hide(_ key: WindowKey) { state.withLock { $0[key]?.hidden = true } }
+    /// 进出全屏的动画里那样：窗口还在，到 until 之前窗口服务器报它没显示
+    func unshow(_ key: WindowKey, until: TimeInterval) { state.withLock { $0[key]?.shownFrom = until } }
     func window(_ key: WindowKey) -> Window? { state.withLock { $0[key] } }
     /// 带着 bundle ID 的窗口都属于哪些进程（假 App 按它报 pids）
     func pids(bundleID: String) -> [Int32] {
@@ -335,7 +337,8 @@ final class FakeWindows: WindowControl {
               refusal.withLock({ $0 })?(window, frame) != true else { return nil }
         moveHook.withLock { $0 }?(window)
         journal.add("move \(window.id) \(frame.short)\(mark)")
-        if movesIgnored.withLock({ $0 }) { return self.window(window)?.frame }
+        // 全屏的窗口不吃挪动（和真的一样）
+        if movesIgnored.withLock({ $0 }) || self.window(window)?.fullScreen == true { return self.window(window)?.frame }
         if let stop = stops.withLock({ $0[window] }) {
             guard stop.contains(CGPoint(x: frame.midX, y: frame.midY)) else { return self.window(window)?.frame }
             _ = stops.withLock { $0.removeValue(forKey: window) }
