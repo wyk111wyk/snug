@@ -48,6 +48,8 @@ struct TouchHomeView: View {
     let catalog: AppCatalog
     let pages: TouchPages
     let intents: any TouchIntents
+    /// 各 AI 客户端的会话名（主页卡片的副标题也用它）
+    let sessionActivity: SessionActivityStore
 
     @State private var tab: Tab
     @State private var confirming: Confirm?
@@ -57,12 +59,13 @@ struct TouchHomeView: View {
 
     /// tab、confirming、selected：渲染样例用
     init(screen: ScreenID, state: AppState, catalog: AppCatalog, pages: TouchPages, intents: any TouchIntents,
-         tab: Tab = .running, confirming: Confirm? = nil, selected: Int32? = nil) {
+         sessionActivity: SessionActivityStore, tab: Tab = .running, confirming: Confirm? = nil, selected: Int32? = nil) {
         self.screen = screen
         self.state = state
         self.catalog = catalog
         self.pages = pages
         self.intents = intents
+        self.sessionActivity = sessionActivity
         _tab = State(initialValue: tab)
         _confirming = State(initialValue: confirming)
         _selected = State(initialValue: selected)
@@ -260,6 +263,7 @@ struct TouchHomeView: View {
 
     private func appCard(_ app: RunningApp) -> some View {
         AppCard(app: app, panel: panel, onScreen: OnScreen(config), favorited: state.config.favorites.contains(app.app.bundleID),
+                sessionTitle: sessionActivity.sessionTitle(app.app.bundleID),
                 confirming: $confirming, icon: catalog.icon(for: app.app), intents: intents)
     }
 

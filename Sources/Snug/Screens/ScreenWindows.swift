@@ -175,8 +175,11 @@ final class ScreenWindows {
         // 列表每轮要把所有 App 的窗口读一遍，还和搬窗口共用一条队：手机没在看这块屏就不为它刷
         if showList, watching {
             catalog.want(id.rawValue, busy: panel.work != nil)
+            // 主页卡片也要显示客户端自己记的会话名：列表露着时同样每 2 秒读一次
+            sessionActivity.start()
         } else {
             catalog.release(id.rawValue)
+            sessionActivity.stop()
         }
         let cropping = screenshot?.isCropping == true
         let barsVisible = panel.placed != nil && !showList && !cropping
@@ -248,7 +251,7 @@ final class ScreenWindows {
         Log.info("屏（\(self.id)）的列表、底部控件建在 #\(id) 上")
         display = id
         list = TouchPanel(content: FirstMouseHostingView(rootView: TouchHomeView(screen: self.id, state: state, catalog: catalog, pages: pages,
-                                                                                 intents: intents).screenPanel(self.id, state: state)))
+                                                                                 intents: intents, sessionActivity: sessionActivity).screenPanel(self.id, state: state)))
         buildBars(panelBehavior.bar)
     }
 
@@ -310,6 +313,7 @@ final class ScreenWindows {
         dockBar?.orderOut(nil)
         floatBar?.orderOut(nil)
         floatView?.stopIdleCountdown()
+        sessionActivity.stop()
         hideFavorites()
         overlay?.orderOut(nil)
         cropPanel?.orderOut(nil)
@@ -365,7 +369,7 @@ final class ScreenWindows {
         guard !rows.isEmpty else { return }
         hideFavorites()
         let scale = ScreenFit.scale(screen: screen.frame.size)
-        // 先把状态读起来（读不到的先按上次的值），再建视图——这样第一帧就有状态，不会先闪一下「不知道」
+        // 状态通常已经由主页列表在读（列表露着时每 2 秒一次）；这里再保险起一次，读不到就先用上次的值
         sessionActivity.start()
         // 背后那层：点它就关
         let dismiss = DismissView()
@@ -437,7 +441,7 @@ final class ScreenWindows {
     private func hideFavorites() {
         favoritesTimer?.invalidate()
         favoritesTimer = nil
-        sessionActivity.stop()
+        // 不在这里停 sessionActivity：主页列表可能还露着、还要用会话名（见 update）
         favoritesScrim?.orderOut(nil)
         favoritesScrim = nil
         favorites?.orderOut(nil)

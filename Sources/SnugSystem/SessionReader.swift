@@ -88,7 +88,7 @@ public enum ProcessList {
         for index in 0..<count where pids[index] > 0 {
             var buffer = [CChar](repeating: 0, count: Int(4 * MAXPATHLEN))
             guard proc_name(pids[index], &buffer, UInt32(buffer.count)) > 0 else { continue }
-            let name = String(cString: buffer).lowercased()
+            let name = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).lowercased()
             if wanted.contains(where: name.contains) { return true }
         }
         return false

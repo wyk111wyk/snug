@@ -23,6 +23,9 @@ struct AppCard: View {
     let onScreen: OnScreen
     /// 这个 App 收藏了没有（App 资源库「全部」页里置顶）
     let favorited: Bool
+    /// 客户端自己记的会话名（如 ZCode 的「新闻网站优化」）：有就盖过窗口标题，
+    /// 因为有些客户端（OpenCode、Antigravity）把会话名写进了窗口标题、有些（ZCode）不写
+    var sessionTitle: String? = nil
     @Binding var confirming: TouchHomeView.Confirm?
     let icon: NSImage
     let intents: any TouchIntents
@@ -66,6 +69,8 @@ struct AppCard: View {
     private var subtitle: String {
         if askingQuit { return "退出 \(app.app.name)？" }
         if quitting { return "正在退出" }
+        // 客户端自己有会话名就用它（ZCode 不往窗口标题写）；否则照旧显示窗口摘要
+        if let sessionTitle, !sessionTitle.isEmpty { return sessionTitle }
         return app.windowSummary
     }
 

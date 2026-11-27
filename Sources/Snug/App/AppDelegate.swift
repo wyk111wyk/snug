@@ -88,13 +88,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 记下运行版本（只为了「刚换了版本」时可以知道），但不再因为它主动弹「关于」：
         // 自己编译装上时版本会一直变，每装一次就弹一个窗口很打扰；版本号在设置「通用」页和「关于」里都看得到
         _ = controller.recordVersion()
+        // 启动后什么窗口都不主动弹，只留在菜单栏（本机自用：装好、开机自启、要用时点菜单栏图标）。
+        // 两种例外必须说：第一次用要讲清用法并请授权；权限被收回时不给入口就彻底用不了
         if !controller.state.config.welcomed {
             if !controller.state.launchAtLogin { controller.setLaunchAtLogin(true) }
             router.showFirstWelcome()
         } else if !controller.state.accessibilityTrusted {
             router.openWelcome()
-        } else if !launchedAtLogin {
-            router.openSettings()
         }
     }
 }
