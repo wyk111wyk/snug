@@ -301,7 +301,11 @@ struct FavoriteSwitcher: View {
                         Text(row.app.name).font(TouchTokens.Font.label.font).lineLimit(1)
                         if row.active { activeBadge }
                     }
-                    Text(row.window).font(TouchTokens.Font.caption.font).foregroundStyle(.secondary).lineLimit(1)
+                    // 有会话名就显示会话名（它比窗口标题更能说明在干什么），没有才退回窗口名
+                    Text(activity.sessionTitle(row.id) ?? row.window)
+                        .font(TouchTokens.Font.caption.font)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 activityMark(activity.activity(row.id))

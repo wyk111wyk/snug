@@ -41,12 +41,16 @@ public struct SessionReading: Equatable, Sendable {
     public var lastActivity: Date?
     /// 客户端记的「最后查看时刻」：比最近一次活动还晚，就说明这一轮的结果已经看过了
     public var lastViewed: Date?
+    /// 最近这一轮所在会话的名字（客户端自己有存的话）
+    public var sessionTitle: String?
 
-    public init(running: Bool, busy: Bool? = nil, lastActivity: Date? = nil, lastViewed: Date? = nil) {
+    public init(running: Bool, busy: Bool? = nil, lastActivity: Date? = nil, lastViewed: Date? = nil,
+                sessionTitle: String? = nil) {
         self.running = running
         self.busy = busy
         self.lastActivity = lastActivity
         self.lastViewed = lastViewed
+        self.sessionTitle = sessionTitle
     }
 }
 
@@ -118,16 +122,18 @@ public enum SessionSources {
                 ORDER BY 2 DESC LIMIT 1
                 """), processKeywords: ["opencode"]),
         // ZCode：两轮之间会安静、且没有「在忙」字段，但最新一条 assistant 消息的 finish 能说话——
-        // 流式生成时为 NULL、等工具为 tool-calls，真正干完是 stop / completed（实测 11-27）
+        // 流式生成时为 NULL、等工具为 tool-calls，真正干完是 stop / completed（实测 11-27）。
+        // 同一个会话 id 去 session 表取标题（session 名的唯一来源）
         SessionSource(bundleID: "dev.zcode.app", kind: .sqlite(
             path: "~/.zcode/cli/db/db.sqlite",
             query: """
-                SELECT CASE WHEN lower(coalesce(json_extract(data, '$.finish'), '')) IN ('stop', 'completed', 'length')
+                SELECT CASE WHEN lower(coalesce(json_extract(m.data, '$.finish'), '')) IN ('stop', 'completed', 'length')
                             THEN 0 ELSE 1 END,
-                       time_updated,
-                       NULL
-                FROM message WHERE json_extract(data, '$.role') = 'assistant'
-                ORDER BY time_updated DESC LIMIT 1
+                       m.time_updated,
+                       NULL,
+                       (SELECT s.title FROM session s WHERE s.id = m.session_id)
+                FROM message m WHERE json_extract(m.data, '$.role') = 'assistant'
+                ORDER BY m.time_updated DESC LIMIT 1
                 """), idleIsUnfinished: true, processKeywords: ["zcode"]),
         // Codex：会话是日期目录下的 rollout-*.jsonl，取最新一个的修改时间。
         // 这台机器上没装 Codex 应用（CLI 跑在别的终端里时，窗口归那个终端 App，认不出是 Codex），

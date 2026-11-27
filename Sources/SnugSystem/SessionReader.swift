@@ -22,7 +22,6 @@ public struct SessionReader: Sendable {
             return SessionReading(running: true, lastActivity: newestFile(root: root, prefix: prefix, suffix: suffix, depth: depth))
         }
     }
-
     /// 只读打开库、跑一句查询：第 1 列 busy（可为 NULL）、第 2 列最近活动的毫秒时间戳
     private func sqliteReading(path: String, query: String) -> SessionReading {
         let file = (path as NSString).expandingTildeInPath
@@ -43,9 +42,13 @@ public struct SessionReader: Sendable {
         // 第 3 列（可选）是「最后查看」时刻：只有会记这个的客户端才有，没有就当作没看过
         let viewed = sqlite3_column_count(statement) > 2 && sqlite3_column_type(statement, 2) != SQLITE_NULL
             ? sqlite3_column_int64(statement, 2) : 0
+        // 第 4 列（可选）是会话名
+        let title = sqlite3_column_count(statement) > 3 && sqlite3_column_type(statement, 3) != SQLITE_NULL
+            ? String(cString: sqlite3_column_text(statement, 3)).trimmingCharacters(in: .whitespacesAndNewlines) : ""
         return SessionReading(running: true, busy: busy,
                               lastActivity: milliseconds > 0 ? Date(timeIntervalSince1970: Double(milliseconds) / 1000) : nil,
-                              lastViewed: viewed > 0 ? Date(timeIntervalSince1970: Double(viewed) / 1000) : nil)
+                              lastViewed: viewed > 0 ? Date(timeIntervalSince1970: Double(viewed) / 1000) : nil,
+                              sessionTitle: title.isEmpty ? nil : title)
     }
 
     /// 沿着名字最大的子目录往下走（日期目录 YYYY/MM/DD 正好按时间排），最后一层里取匹配文件的最新修改时间

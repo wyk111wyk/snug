@@ -13,6 +13,8 @@ final class SessionActivityStore {
 
     /// 按 bundleID 的状态；没读到的按「不知道」
     private(set) var states: [String: SessionActivity] = [:]
+    /// 按 bundleID 的会话名（客户端自己有存的话）
+    private(set) var sessionTitles: [String: String] = [:]
 
     @ObservationIgnored private let reader = SessionReader()
     @ObservationIgnored private let sources: [SessionSource]
@@ -50,8 +52,10 @@ final class SessionActivityStore {
         Task.detached { [weak self] in
             let now = Date()
             var next: [String: SessionActivity] = [:]
+            var titles: [String: String] = [:]
             for source in sources {
                 let reading = reader.reading(source)
+                if let title = reading.sessionTitle { titles[source.bundleID] = title }
                 // 这一次什么都没读到（库被锁、文件没在写）：保留上一次的结果，不要冲成「不知道」
                 if reading.busy == nil, reading.lastActivity == nil,
                    let previous = await self?.states[source.bundleID] {
@@ -60,7 +64,13 @@ final class SessionActivityStore {
                 }
                 next[source.bundleID] = SessionActivityRule.state(reading: reading, idleIsUnfinished: source.idleIsUnfinished, now: now)
             }
-            await MainActor.run { self?.states = next }
+            await MainActor.run {
+                self?.states = next
+                if !titles.isEmpty { self?.sessionTitles = titles }
+            }
         }
     }
+
+    /// 这个 App 最近一轮的会话名（读不到就是 nil）
+    func sessionTitle(_ bundleID: String) -> String? { sessionTitles[bundleID] }
 }
